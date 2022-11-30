@@ -83,6 +83,10 @@ namespace wiGraphics
 	public:
 		GraphicsDevice_DX11(bool debuglayer = false);
 
+	public:
+		void* GetDeviceForIMGUI(void) override;
+		void* GetImmediateForIMGUI(void) override;
+
 		GraphicsDeviceType GetType() const override { return GRAPHICS_DEVICE_TYPE_DX11; }
 		void* GetInternalDevice() const override { return device.Get(); }
 		void* GetInternalQueue() const override { return 0; }

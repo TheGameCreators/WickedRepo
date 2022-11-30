@@ -237,6 +237,10 @@ namespace wiGraphics
 		GraphicsDevice_DX12(bool debuglayer = false, bool gpuvalidation = false);
 		virtual ~GraphicsDevice_DX12();
 
+	public:
+		void* GetDeviceForIMGUI(void) override;
+		void* GetImmediateForIMGUI(void) override;
+
 		GraphicsDeviceType GetType() const override { return GRAPHICS_DEVICE_TYPE_DX12; }
 		void* GetInternalDevice() const override { return device.Get(); }
 		void* GetInternalQueue() const override { return queues[QUEUE_GRAPHICS].queue.Get(); }

@@ -2844,6 +2844,15 @@ Texture GraphicsDevice_DX11::GetBackBuffer(const SwapChain* swapchain) const
 	return result;
 }
 
+void* GraphicsDevice_DX11::GetDeviceForIMGUI(void)
+{
+	return (void*)device.Get();
+}
+void* GraphicsDevice_DX11::GetImmediateForIMGUI(void)
+{
+	return (void*)immediateContext.Get();
+}
+
 void GraphicsDevice_DX11::commit_allocations(CommandList cmd)
 {
 	// DX11 needs to unmap allocations before it can execute safely

@@ -2553,6 +2553,14 @@ using namespace DX12_Internal;
 				return dxgiFactory->EnumAdapters1(index, ppAdapter);
 		};
 
+		/* data makes no sense!
+		// GGREDUCED - DEBUG - Turn on AutoBreadcrumbs and Page Fault reporting
+		ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
+		D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings));
+		pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+		pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+		*/
+
 		// GGREDUCED
 		D3D_FEATURE_LEVEL iGGReducedD3DFeatureLevel = D3D_FEATURE_LEVEL_12_1;
 
@@ -5878,7 +5886,19 @@ using namespace DX12_Internal;
 				{
 					for (auto& swapchain : swapchains[cmd])
 					{
-						to_internal(swapchain)->swapChain->Present(swapchain->desc.vsync, 0);
+						if (to_internal(swapchain)->swapChain->Present(swapchain->desc.vsync, 0) != S_OK)
+						{
+							/* data makes no sense!
+							// GGREDUCED - DEBUG - FIND WHEN DEVICE LOST
+							ComPtr<ID3D12DeviceRemovedExtendedData1> pDred;
+							device->QueryInterface(IID_PPV_ARGS(&pDred));
+							D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 DredAutoBreadcrumbsOutput;
+							D3D12_DRED_PAGE_FAULT_OUTPUT DredPageFaultOutput;
+							pDred->GetAutoBreadcrumbsOutput1(&DredAutoBreadcrumbsOutput);
+							pDred->GetPageFaultAllocationOutput(&DredPageFaultOutput);
+							MessageBoxA(NULL, "hello DX12 device drop!", "", MB_OK);
+							*/
+						}
 					}
 				}
 			}
@@ -5982,6 +6002,15 @@ using namespace DX12_Internal;
 		result.internal_state = internal_state;
 		result.desc = _ConvertTextureDesc_Inv(desc);
 		return result;
+	}
+
+	void* GraphicsDevice_DX12::GetDeviceForIMGUI(void)
+	{
+		return NULL;
+	}
+	void* GraphicsDevice_DX12::GetImmediateForIMGUI(void)
+	{
+		return NULL;
 	}
 
 	void GraphicsDevice_DX12::WaitCommandList(CommandList cmd, CommandList wait_for)

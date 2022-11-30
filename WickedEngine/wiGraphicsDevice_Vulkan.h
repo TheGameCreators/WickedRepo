@@ -298,6 +298,10 @@ namespace wiGraphics
 		GraphicsDevice_Vulkan(wiPlatform::window_type window, bool debuglayer = false);
 		virtual ~GraphicsDevice_Vulkan();
 
+	public:
+		void* GetDeviceForIMGUI(void) override;
+		void* GetImmediateForIMGUI(void) override;
+
 		GraphicsDeviceType GetType() const override { return GRAPHICS_DEVICE_TYPE_VULKAN; }
 		void* GetInternalDevice() const override { return (void*) device; }
 

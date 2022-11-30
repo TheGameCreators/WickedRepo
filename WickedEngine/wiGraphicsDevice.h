@@ -49,6 +49,10 @@ namespace wiGraphics
 		uint64_t TIMESTAMP_FREQUENCY = 0;
 
 	public:
+		virtual void* GetDeviceForIMGUI(void) = 0;
+		virtual void* GetImmediateForIMGUI(void) = 0;
+
+	public:
 
 		// used by OpenXR
 		virtual GraphicsDeviceType GetType() const { return GRAPHICS_DEVICE_TYPE_UNDEFINED; }

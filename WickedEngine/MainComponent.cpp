@@ -256,7 +256,7 @@ void MainComponent::Render( int mode )
 		GetActivePath()->Render( mode );
 	}
 
-	wiProfiler::EndRange(range); // Render
+	wiProfiler::EndRange(range); // Render 
 }
 
 void MainComponent::Compose(CommandList cmd)
@@ -397,8 +397,9 @@ void MainComponent::SetWindow(wiPlatform::window_type window, bool fullscreen)
 		//bool use_dx12 = wiStartupArguments::HasArgument("dx12");
 		//bool use_vulkan = wiStartupArguments::HasArgument("vulkan");
 
-		bool use_dx11 = false;
-		bool use_dx12 = true;
+		//LB: Early DX12 has AMD issues - will need latest Wicked to Resolve Eventually
+		bool use_dx11 = true;// false;
+		bool use_dx12 = false;// true;
 		bool use_vulkan = false;
 
 #ifndef WICKEDENGINE_BUILD_DX11

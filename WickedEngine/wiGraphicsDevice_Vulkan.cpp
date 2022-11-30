@@ -6195,6 +6195,16 @@ using namespace Vulkan_Internal;
 		return result;
 	}
 
+	void* GraphicsDevice_Vulkan::GetDeviceForIMGUI(void)
+	{
+		assert(0);
+		return NULL;
+	}
+	void* GraphicsDevice_Vulkan::GetImmediateForIMGUI(void)
+	{
+		assert(0);
+		return NULL;
+	}
 
 	void GraphicsDevice_Vulkan::WaitCommandList(CommandList cmd, CommandList wait_for)
 	{
