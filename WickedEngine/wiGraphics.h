@@ -54,12 +54,6 @@ namespace wiGraphics
 		LINESTRIP,
 		PATCHLIST,
 	};
-	enum TRIANGLE_STRIP_RESTART
-	{
-		RESTART_NONE,
-		RESTART_FFFF,
-		RESTART_FFFFFFFF,
-	};
 	enum COMPARISON_FUNC
 	{
 		COMPARISON_NEVER,
@@ -360,8 +354,6 @@ namespace wiGraphics
 		RESOURCE_MISC_RAY_TRACING = 1 << 6,
 #ifdef GGREDUCED
 		RESOURCE_MISC_GEN_MIPMAPS = 1 << 7,
-		RESOURCE_MISC_COPY_SRC = 1 << 8,
-		RESOURCE_MISC_COPY_DST = 1 << 9,
 #endif
 	};
 	enum GRAPHICSDEVICE_CAPABILITY
@@ -535,7 +527,6 @@ namespace wiGraphics
 		const DepthStencilState* dss = nullptr;
 		const InputLayout*		il = nullptr;
 		PRIMITIVETOPOLOGY		pt = TRIANGLELIST;
-		TRIANGLE_STRIP_RESTART  stripRestart = RESTART_NONE;
 		uint32_t				sampleMask = 0xFFFFFFFF;
 	};
 	struct GPUBarrier

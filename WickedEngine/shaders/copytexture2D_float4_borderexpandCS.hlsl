@@ -17,7 +17,7 @@ void main(int3 DTid : SV_DispatchThreadID)
 		return;
 	}
 
-	const int2 readcoord = DTid.xy + xCopySrc; //GGREDUCED
+	const int2 readcoord = DTid.xy;
 	const int2 writecoord = DTid.xy + xCopyDest;
 
 	output[writecoord] = input.Load(int3(readcoord, xCopySrcMIP));

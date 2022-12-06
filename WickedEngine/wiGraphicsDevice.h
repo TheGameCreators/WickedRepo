@@ -4,14 +4,6 @@
 #include "wiPlatform.h"
 #include "wiEvent.h"
 
-enum GraphicsDeviceType
-{
-	GRAPHICS_DEVICE_TYPE_UNDEFINED = 0,
-	GRAPHICS_DEVICE_TYPE_DX11,
-	GRAPHICS_DEVICE_TYPE_DX12,
-	GRAPHICS_DEVICE_TYPE_VULKAN
-};
-
 namespace wiGraphics
 {
 	typedef uint8_t CommandList;
@@ -49,16 +41,16 @@ namespace wiGraphics
 		uint64_t TIMESTAMP_FREQUENCY = 0;
 
 	public:
+
+#ifdef GGREDUCED
 		virtual void* GetDeviceForIMGUI(void) = 0;
 		virtual void* GetImmediateForIMGUI(void) = 0;
-
-	public:
-
-		// used by OpenXR
-		virtual GraphicsDeviceType GetType() const { return GRAPHICS_DEVICE_TYPE_UNDEFINED; }
-		virtual void* GetInternalDevice() const = 0;
-		virtual void* GetInternalQueue() const = 0;
-
+		virtual void* GetDeviceContext(int cmd) = 0;
+		virtual void SetScissorArea(int cmd, const XMFLOAT4 area) = 0;
+		virtual void SetRenderTarget(CommandList cmd, void* renderTarget) = 0;
+		virtual void* MaterialGetSRV(void* resource) = 0;
+		virtual void* GetBackBufferForGG(const SwapChain* swapchain) = 0;
+#endif
 		int dpi = 96;
 		//wiEvent::Handle dpi_change_event = wiEvent::Subscribe(SYSTEM_EVENT_CHANGE_DPI, [this](uint64_t userdata) { dpi = int(userdata & 0xFFFF); });
 
@@ -66,7 +58,6 @@ namespace wiGraphics
 		virtual bool CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform::window_type window, SwapChain* swapChain) const = 0;
 		virtual bool CreateBuffer(const GPUBufferDesc *pDesc, const SubresourceData* pInitialData, GPUBuffer *pBuffer) const = 0;
 		virtual bool CreateTexture(const TextureDesc* pDesc, const SubresourceData *pInitialData, Texture *pTexture) const = 0;
-		virtual bool CreateTextureExternal(const TextureDesc* pDesc, void* pExternalTexture, Texture *pTexture) const = 0;
 		virtual bool CreateShader(SHADERSTAGE stage, const void *pShaderBytecode, size_t BytecodeLength, Shader *pShader) const = 0;
 		virtual bool CreateSampler(const SamplerDesc *pSamplerDesc, Sampler *pSamplerState) const = 0;
 		virtual bool CreateQueryHeap(const GPUQueryHeapDesc *pDesc, GPUQueryHeap *pQueryHeap) const = 0;
@@ -160,9 +151,11 @@ namespace wiGraphics
 		virtual void DispatchMeshIndirect(const GPUBuffer* args, uint32_t args_offset, CommandList cmd) {}
 		virtual void CopyResource(const GPUResource* pDst, const GPUResource* pSrc, CommandList cmd) = 0;
 #ifdef GGREDUCED
+		virtual void CopyTexture2D_Region(const Texture* pDst, uint32_t dstMip, uint32_t dstX, uint32_t dstY, const Texture* pSrc, uint32_t srcMip, CommandList cmd) = 0;
+		virtual void MSAAResolve(const Texture* pDst, const Texture* pSrc, CommandList cmd) = 0;
 		virtual void UpdateTexture(const Texture* tex, uint32_t mipLevel, uint32_t arraySlice, CopyBox* dstBox, const void* data, uint32_t dataRowStride, CommandList cmd) = 0;
 		virtual void GenerateMipmaps(Texture* tex, CommandList cmd) = 0;
-		virtual void SetPresentMode(bool bPresentWhenSubmit) = 0;
+		virtual void CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd) = 0;
 #endif
 		virtual void UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize = -1) = 0;
 		virtual void QueryBegin(const GPUQueryHeap *heap, uint32_t index, CommandList cmd) = 0;

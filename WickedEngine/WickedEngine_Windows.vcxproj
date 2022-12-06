@@ -128,7 +128,7 @@
       <Command>IF NOT EXIST "$(ProjectDir)shaders\" mkdir "$(ProjectDir)shaders\"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>"..\OfflineShaderCompiler.exe" hlsl6 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
+      <Command>"..\OfflineShaderCompiler.exe" hlsl5 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugForGG|x64'">
@@ -170,7 +170,7 @@
       <Command>IF NOT EXIST "$(ProjectDir)shaders\" mkdir "$(ProjectDir)shaders\"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>"..\\BUILD\\x64\\Release\\OfflineShaderCompiler\\OfflineShaderCompiler.exe" hlsl6 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
+      <Command>"..\OfflineShaderCompiler.exe" hlsl5 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -207,7 +207,7 @@
       <Command>IF NOT EXIST "$(ProjectDir)shaders\" mkdir "$(ProjectDir)shaders\"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>"..\\BUILD\\x64\\Release\\OfflineShaderCompiler\\OfflineShaderCompiler.exe" hlsl6 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
+      <Command>"..\OfflineShaderCompiler.exe" hlsl5 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseForGG|x64'">
@@ -244,7 +244,7 @@
       <Command>IF NOT EXIST "$(ProjectDir)shaders\" mkdir "$(ProjectDir)shaders\"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>"..\\BUILD\\x64\\Release\\OfflineShaderCompiler\\OfflineShaderCompiler.exe" hlsl5 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
+      <Command>"..\OfflineShaderCompiler.exe" hlsl5 rebuild -outputpath "$(GG_MAX_BUILD_PATH)/Max/shaders/"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

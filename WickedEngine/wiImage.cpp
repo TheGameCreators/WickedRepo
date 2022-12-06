@@ -277,7 +277,6 @@ namespace wiImage
 			}
 			desc.rs = &rasterizerState;
 			desc.pt = TRIANGLESTRIP;
-			desc.stripRestart = RESTART_FFFF;
 
 			desc.ps = &imagePS[i];
 

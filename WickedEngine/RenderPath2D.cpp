@@ -5,7 +5,7 @@
 #include "wiRenderer.h"
 
 #ifdef GGREDUCED
-void ImGui_RenderCall( wiGraphics::CommandList cmd );
+void ImGuiHook_RenderCall(void* ctx);
 
 namespace GGTerrain {
 	extern "C" void GGTerrain_Draw_Debug( wiGraphics::CommandList cmd );
@@ -28,15 +28,13 @@ void RenderPath2D::ResizeBuffers()
 
 	GraphicsDevice* device = wiRenderer::GetDevice();
 
-	const Texture* dsv = nullptr;//GetDepthStencil();
+	const Texture* dsv = GetDepthStencil();
 	if(dsv != nullptr && (resolutionScale != 1.0f ||  dsv->GetDesc().SampleCount > 1))
 	{
 		TextureDesc desc = GetDepthStencil()->GetDesc();
 		desc.layout = IMAGE_LAYOUT_SHADER_RESOURCE;
 		desc.BindFlags = BIND_RENDER_TARGET | BIND_SHADER_RESOURCE;
 		desc.Format = FORMAT_R8G8B8A8_UNORM;
-		desc.Width = GetPhysicalWidth();
-		desc.Height = GetPhysicalHeight();
 		device->CreateTexture(&desc, nullptr, &rtStenciled);
 		device->SetName(&rtStenciled, "rtStenciled");
 
@@ -238,7 +236,7 @@ void RenderPath2D::Render( int mode ) const
 	vp.Height = (float)rtFinal.GetDesc().Height;
 	device->BindViewports(1, &vp, cmd);
 
-	if ( 0 ) //GetDepthStencil() != nullptr)
+	if (GetDepthStencil() != nullptr)
 	{
 		if (rtStenciled.IsValid())
 		{
@@ -307,6 +305,13 @@ void RenderPath2D::Render( int mode ) const
 }
 void RenderPath2D::Compose(CommandList cmd) const
 {
+#ifdef GGREDUCED
+//  Moved to ImGuiHook_RenderCall so we get overlay.
+//	extern bool g_bNo2DRender;
+//	if (g_bNo2DRender)
+//		return;
+#endif
+
 	wiImageParams fx;
 	fx.enableFullScreen();
 	fx.blendFlag = BLENDMODE_PREMULTIPLIED;
@@ -325,7 +330,8 @@ void RenderPath2D::Compose(CommandList cmd) const
 	}
 
 	// hook back to main app to allow it to render IMGUI IDE
-	ImGui_RenderCall( cmd );
+	GraphicsDevice* device = wiRenderer::GetDevice();
+	ImGuiHook_RenderCall((void*)device->GetDeviceContext(cmd));
 
 	if (!g_bNoTerrainRender)
 	{

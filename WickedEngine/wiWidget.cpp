@@ -348,7 +348,6 @@ namespace wiWidget_Internal
 		desc.bs = wiRenderer::GetBlendState(BSTYPE_TRANSPARENT);
 		desc.rs = wiRenderer::GetRasterizerState(RSTYPE_DOUBLESIDED);
 		desc.pt = TRIANGLESTRIP;
-		desc.stripRestart = RESTART_FFFF;
 		wiRenderer::GetDevice()->CreatePipelineState(&desc, &PSO_colored);
 	}
 }

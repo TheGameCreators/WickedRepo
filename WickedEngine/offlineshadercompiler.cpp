@@ -9,7 +9,6 @@
 
 std::mutex locker;
 std::vector<std::string> shaders[wiGraphics::SHADERSTAGE_COUNT];
-std::vector<std::string> shaders_max[3][wiGraphics::SHADERSTAGE_COUNT];
 std::unordered_map<std::string, wiGraphics::SHADERMODEL> minshadermodels;
 struct Target
 {
@@ -519,159 +518,9 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	std::cout << "[Wicked Engine Offline Shader Compiler] Finished in " << std::setprecision(4) << timer.elapsed_seconds() << " seconds" << std::endl;
-
-	std::cout << "[Wicked Engine Offline Shader Compiler] MAX Shaders Begin" << std::endl;
-	shaders_max[0][wiGraphics::CS] = {
-		"GGTerrainReadBackCS.hlsl",
-		"GGTerrainReadBackMSCS.hlsl"
-	};
-	shaders_max[0][wiGraphics::VS] = {
-		"GGTreesVS.hlsl",
-		"GGTreesHighVS.hlsl",
-		"GGTreeBranchesHighVS.hlsl"	,
-		"GGTreesShadowMapVS.hlsl",
-		"GGTreesPrepassVS.hlsl",
-		"GGTreesHighShadowMapVS.hlsl",
-		"GGTreesHighPrepassVS.hlsl",
-		"GGTreesHighEnvProbeVS.hlsl",
-		"GGTreeBranchesHighShadowMapVS.hlsl",
-		"GGTreeBranchesHighPrepassVS.hlsl",
-		"GGTreeBranchesHighEnvProbeVS.hlsl",
-		"GGTerrainVS.hlsl",
-		"GGTerrainSphereVS.hlsl",
-		"GGTerrainShadowMapVS.hlsl",
-		"GGTerrainRampVS.hlsl",
-		"GGTerrainPrepassVS.hlsl",
-		"GGTerrainPrepassRefVS.hlsl",
-		"GGTerrainPageGenVS.hlsl",
-		"GGTerrainOverlayVS.hlsl",
-		"GGTerrainEnvProbeVS.hlsl",
-		"GGTerrainEditBoxVS.hlsl",
-		"GGGrassVS.hlsl",
-		"GGGrassShadowMapVS.hlsl",
-		"GGGrassPrepassVS.hlsl",
-		"GGTerrainReadBackVS.hlsl",
-		"GGTerrainQuadVS.hlsl",
-		"terraintestVS.hlsl"
-	};
-	shaders_max[0][wiGraphics::PS] = {
-		"GGTreesHighPS.hlsl",
-		"GGTreeBranchesHighPS.hlsl",
-		"GGTerrainVirtualPBR_PS.hlsl",
-		"GGTreesShadowMapPS.hlsl",
-		"GGTreesPrepassPS.hlsl",
-		"GGTreesPS.hlsl",
-		"GGTreesHighShadowMapPS.hlsl",
-		"GGTreesHighPrepassPS.hlsl",
-		"GGTreesHighEnvProbePS.hlsl",
-		"GGTreeBranchesHighShadowMapPS.hlsl",
-		"GGTreeBranchesHighPrepassPS.hlsl",
-		"GGTreeBranchesHighEnvProbePS.hlsl",
-		"GGTerrainSpherePrepassPS.hlsl",
-		"GGTerrainSpherePS.hlsl",
-		"GGTerrainRampPS.hlsl",
-		"GGTerrainQuadPS.hlsl",
-		"GGTerrainPrepassPS.hlsl",
-		"GGTerrainPageGenPS.hlsl",
-		"GGTerrainOverlayPS.hlsl",
-		"GGTerrainEnvProbePS.hlsl",
-		"GGTerrainEditBoxPS.hlsl",
-		"GGGrassShadowMapPS.hlsl",
-		"GGGrassPrepassPS.hlsl",
-		"GGGrassPS.hlsl",
-		"terraintestPS.hlsl",
-		"GGTerrainReadBackPS.hlsl"
-	};
-	shaders_max[1][wiGraphics::VS] = {
-		"GPUP_MainVS.hlsl",
-		"GPUP_QuadVS.hlsl",
-		"testVS.hlsl"
-	};
-	shaders_max[1][wiGraphics::PS] = {
-		"GPUP_MainPS.hlsl",
-		"GPUP_NoisePS.hlsl",
-		"GPUP_PosPS.hlsl",
-		"GPUP_SpeedPS.hlsl",
-		"QuadDefaultPS.hlsl",
-		"testPS.hlsl"
-	};
-	shaders_max[2][wiGraphics::VS] = {
-		"imguiVertex.hlsl"
-	};
-	shaders_max[2][wiGraphics::PS] = {
-		"imguiPixel.hlsl",
-		"imguiPixelBlur.hlsl",
-		"imguiPixelBoost25.hlsl",
-		"imguiPixelNoAlpha.hlsl"
-	};
-	for(int iFolders = 0; iFolders < 3; iFolders++ )
-	{
-		std::string SHADERSOURCEPATH_MAX = GG_MAX_SOURCE_PATH;
-		if (iFolders == 0) SHADERSOURCEPATH_MAX += "\\GameGuru Core\\Guru-WickedMAX\\GGTerrain\\Shaders\\";
-		if (iFolders == 1) SHADERSOURCEPATH_MAX += "\\GameGuru Core\\Guru-WickedMAX\\Particles\\Shaders\\";
-		if (iFolders == 2) SHADERSOURCEPATH_MAX += "\\GameGuru Core\\GameGuru\\Imgui\\shaders\\";
-		for (auto& target : targets)
-		{
-			std::string SHADERPATH = target.dir;
-			for (int i = 0; i < wiGraphics::SHADERSTAGE_COUNT; ++i)
-			{
-				for (auto& shader : shaders_max[iFolders][i])
-				{
-					wiJobSystem::Execute(ctx, [=](wiJobArgs args)
-					{
-						std::string shaderbinaryfilename = wiHelper::ReplaceExtension(SHADERPATH + shader, "cso");
-						if (!rebuild && !wiShaderCompiler::IsShaderOutdated(shaderbinaryfilename))
-						{
-							return;
-						}
-
-						wiShaderCompiler::CompilerInput input;
-						input.format = wiGraphics::SHADERFORMAT_HLSL6;
-						input.stage = (wiGraphics::SHADERSTAGE)i;
-						input.shadersourcefilename = SHADERSOURCEPATH_MAX + shader;
-						input.include_directories.push_back(SHADERSOURCEPATH_MAX);
-						//std::cout << "debug: " << input.shadersourcefilename << std::endl;
-
-						auto it = minshadermodels.find(shader);
-						if (it != minshadermodels.end())
-						{
-							// increase min shader model only for specific shaders
-							input.minshadermodel = it->second;
-						}
-
-						wiShaderCompiler::CompilerOutput output;
-						wiShaderCompiler::Compile(input, output);
-
-						if (output.IsValid())
-						{
-							wiShaderCompiler::SaveShaderAndMetadata(shaderbinaryfilename, output);
-							locker.lock();
-							if (!output.error_message.empty())
-							{
-								std::cerr << output.error_message << std::endl;
-							}
-							std::cout << "shader compiled: " << shaderbinaryfilename << std::endl;
-							if (shaderdump_enabled)
-							{
-								results[shaderbinaryfilename] = output;
-							}
-							locker.unlock();
-						}
-						else
-						{
-							locker.lock();
-							std::cerr << "shader compile FAILED: " << shaderbinaryfilename << std::endl << output.error_message;
-							locker.unlock();
-							std::exit(1);
-						}
-					});
-				}
-			}
-		}
-	}
 	wiJobSystem::Wait(ctx);
-	std::cout << "[Wicked Engine Offline Shader Compiler] MAX Shaders Finish" << std::endl;
+
+	std::cout << "[Wicked Engine Offline Shader Compiler] Finished in " << std::setprecision(4) << timer.elapsed_seconds() << " seconds" << std::endl;
 
 	if (shaderdump_enabled)
 	{

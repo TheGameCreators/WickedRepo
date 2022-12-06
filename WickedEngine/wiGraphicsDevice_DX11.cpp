@@ -1604,6 +1604,65 @@ bool GraphicsDevice_DX11::CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform
 	return true;
 }
 
+#ifdef GGREDUCED
+
+void* GraphicsDevice_DX11::GetBackBufferForGG(const SwapChain* swapchain)
+{
+	Texture texBackBuffer = GetBackBuffer( swapchain );
+	Texture_DX11* dx11BackBuffer = to_internal(&texBackBuffer);
+	return dx11BackBuffer->resource.Get();
+}
+void* GraphicsDevice_DX11::GetDeviceForIMGUI(void)
+{
+	return (void*)device.Get();
+}
+void* GraphicsDevice_DX11::GetImmediateForIMGUI(void)
+{
+	return (void*)immediateContext.Get();
+}
+void* GraphicsDevice_DX11::GetDeviceContext(int cmd)
+{
+	return (void*)deviceContexts[cmd].Get();
+}
+void GraphicsDevice_DX11::SetScissorArea(int cmd, const XMFLOAT4 area)
+{
+	D3D11_RECT pRects[1];
+	pRects[0].bottom = (LONG) area.w;
+	pRects[0].left = (LONG) area.x;
+	pRects[0].right = (LONG) area.z;
+	pRects[0].top = (LONG) area.y;
+	deviceContexts[cmd]->RSSetScissorRects(1, pRects);
+}
+
+void GraphicsDevice_DX11::SetRenderTarget(CommandList cmd, void* renderView)
+{
+	ID3D11RenderTargetView* RTV = (ID3D11RenderTargetView*)renderView;
+	deviceContexts[cmd]->OMSetRenderTargets(1, &RTV, 0);
+}
+
+void* GraphicsDevice_DX11::MaterialGetSRV(void* resource)
+{
+	GPUResource* res = (GPUResource*)resource;
+
+	if (res != nullptr && res->IsValid())
+	{
+		auto internal_state = to_internal(res);
+		ID3D11ShaderResourceView* SRV;
+
+		//PE: Will check if i get the same.
+		// leelee, debug crashes here for some reason - how can this be null (or 0xddddddddddddddd)
+		ID3D11ShaderResourceView* pSRVPtr = internal_state->srv.Get();
+		if (internal_state->srv == NULL || pSRVPtr == NULL || pSRVPtr == (ID3D11ShaderResourceView*)0xdddddddddddddddd || pSRVPtr == (ID3D11ShaderResourceView*)1)
+			return NULL;
+
+		SRV = internal_state->srv.Get();
+		return(SRV);
+	}
+	return NULL;
+
+}
+#endif
+
 bool GraphicsDevice_DX11::CreateBuffer(const GPUBufferDesc *pDesc, const SubresourceData* pInitialData, GPUBuffer *pBuffer) const
 {
 	auto internal_state = std::make_shared<Resource_DX11>();
@@ -1707,45 +1766,6 @@ bool GraphicsDevice_DX11::CreateTexture(const TextureDesc* pDesc, const Subresou
 	assert(SUCCEEDED(hr));
 	if (FAILED(hr))
 		return SUCCEEDED(hr);
-
-	if (pTexture->desc.MipLevels == 0)
-	{
-		pTexture->desc.MipLevels = (uint32_t)log2(std::max(pTexture->desc.Width, pTexture->desc.Height)) + 1;
-	}
-
-	if (pTexture->desc.BindFlags & BIND_RENDER_TARGET)
-	{
-		CreateSubresource(pTexture, RTV, 0, -1, 0, -1);
-	}
-	if (pTexture->desc.BindFlags & BIND_DEPTH_STENCIL)
-	{
-		CreateSubresource(pTexture, DSV, 0, -1, 0, -1);
-	}
-	if (pTexture->desc.BindFlags & BIND_SHADER_RESOURCE)
-	{
-		CreateSubresource(pTexture, SRV, 0, -1, 0, -1);
-	}
-	if (pTexture->desc.BindFlags & BIND_UNORDERED_ACCESS)
-	{
-		CreateSubresource(pTexture, UAV, 0, -1, 0, -1);
-	}
-
-	return SUCCEEDED(hr);
-}
-bool GraphicsDevice_DX11::CreateTextureExternal(const TextureDesc* pDesc, void* pExternalTexture, Texture *pTexture) const
-{
-	auto internal_state = std::make_shared<Texture_DX11>();
-	pTexture->internal_state = internal_state;
-	pTexture->type = GPUResource::GPU_RESOURCE_TYPE::TEXTURE;
-
-	pTexture->desc = *pDesc;
-
-	HRESULT hr = S_OK;
-
-	// texture already exists, assign it to internal pointer
-	ID3D11Resource* pExternalResource = (ID3D11Resource*) pExternalTexture;
-	internal_state->resource.Attach( pExternalResource );
-	pExternalResource->AddRef();
 
 	if (pTexture->desc.MipLevels == 0)
 	{
@@ -2719,10 +2739,10 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 	D3D11_RECT pRects[8];
 	for (uint32_t i = 0; i < 8; ++i)
 	{
-		pRects[i].bottom = 65535;
-		pRects[i].left = 0;
-		pRects[i].right = 65535;
-		pRects[i].top = 0;
+		pRects[i].bottom = INT32_MAX;
+		pRects[i].left = INT32_MIN;
+		pRects[i].right = INT32_MAX;
+		pRects[i].top = INT32_MIN;
 	}
 	deviceContexts[cmd]->RSSetScissorRects(8, pRects);
 
@@ -2842,15 +2862,6 @@ Texture GraphicsDevice_DX11::GetBackBuffer(const SwapChain* swapchain) const
 	result.desc = _ConvertTextureDesc_Inv(&desc);
 
 	return result;
-}
-
-void* GraphicsDevice_DX11::GetDeviceForIMGUI(void)
-{
-	return (void*)device.Get();
-}
-void* GraphicsDevice_DX11::GetImmediateForIMGUI(void)
-{
-	return (void*)immediateContext.Get();
 }
 
 void GraphicsDevice_DX11::commit_allocations(CommandList cmd)
@@ -3356,6 +3367,23 @@ void GraphicsDevice_DX11::CopyResource(const GPUResource* pDst, const GPUResourc
 	deviceContexts[cmd]->CopyResource(internal_state_dst->resource.Get(), internal_state_src->resource.Get());
 }
 #ifdef GGREDUCED
+void GraphicsDevice_DX11::CopyTexture2D_Region(const Texture* pDst, uint32_t dstMip, uint32_t dstX, uint32_t dstY, const Texture* pSrc, uint32_t srcMip, CommandList cmd)
+{
+	assert(pDst != nullptr && pSrc != nullptr);
+	auto internal_state_src = to_internal(pSrc);
+	auto internal_state_dst = to_internal(pDst);
+	deviceContexts[cmd]->CopySubresourceRegion(internal_state_dst->resource.Get(), D3D11CalcSubresource(dstMip, 0, pDst->GetDesc().MipLevels), dstX, dstY, 0,
+		internal_state_src->resource.Get(), D3D11CalcSubresource(srcMip, 0, pSrc->GetDesc().MipLevels), nullptr);
+}
+
+void GraphicsDevice_DX11::MSAAResolve(const Texture* pDst, const Texture* pSrc, CommandList cmd)
+{
+	assert(pDst != nullptr && pSrc != nullptr);
+	auto internal_state_src = to_internal(pSrc);
+	auto internal_state_dst = to_internal(pDst);
+	deviceContexts[cmd]->ResolveSubresource(internal_state_dst->resource.Get(), 0, internal_state_src->resource.Get(), 0, _ConvertFormat(pDst->desc.Format));
+}
+
 void GraphicsDevice_DX11::UpdateTexture(const Texture* tex, uint32_t mipLevel, uint32_t arraySlice, CopyBox* dstBox, const void* data, uint32_t dataRowStride, CommandList cmd)
 {
 	GPUResource* res = (GPUResource*)tex;
@@ -3384,8 +3412,23 @@ void GraphicsDevice_DX11::GenerateMipmaps(Texture* tex, CommandList cmd)
 	if ( cmd >= 0 && cmd < COMMANDLIST_COUNT ) context = deviceContexts[cmd].Get(); 
 	context->GenerateMips( shaderView );
 }
-void GraphicsDevice_DX11::SetPresentMode(bool bPresentWhenSubmit)
+
+void GraphicsDevice_DX11::CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd)
 {
+	ID3D11DeviceContext* context = immediateContext.Get();
+	if ( cmd >= 0 && cmd < COMMANDLIST_COUNT ) context = deviceContexts[cmd].Get();
+
+	ID3D11Buffer* dstRes = pDst != nullptr && pDst->IsValid() ? (ID3D11Buffer*)to_internal(pDst)->resource.Get() : nullptr;
+	ID3D11Buffer* srcRes = pSrc != nullptr && pSrc->IsValid() ? (ID3D11Buffer*)to_internal(pSrc)->resource.Get() : nullptr;
+
+	D3D11_BOX srcBox;
+	srcBox.left = srcOffset;
+	srcBox.right = srcOffset + srcLength;
+	srcBox.top = 0;
+	srcBox.bottom = 1;
+	srcBox.front = 0;
+	srcBox.back = 1;
+	context->CopySubresourceRegion( dstRes, 0, dstOffset, 0, 0, srcRes, 0, &srcBox );
 }
 #endif
 void GraphicsDevice_DX11::UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize)

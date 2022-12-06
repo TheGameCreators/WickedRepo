@@ -698,13 +698,6 @@ namespace wiRenderer
 		BORDEREXPAND_WRAP,
 		BORDEREXPAND_CLAMP,
 	};
-	// GGREDUCED
-	void CopyTexture2DArea(
-		const wiGraphics::Texture& dst, int DstMIP, int DstX, int DstY,
-		const wiGraphics::Texture& src, int SrcX, int SrcY, int SrcMIP,
-		wiGraphics::CommandList cmd,
-		BORDEREXPANDSTYLE borderExpand = BORDEREXPAND_DISABLE
-	);
 	// Performs copy operation even between different texture formats
 	//	NOTE: DstMIP can be specified as -1 to use main subresource, otherwise the subresource (>=0) must have been generated explicitly!
 	//	Can also expand border region according to desired sampler func

@@ -3,7 +3,7 @@
 #include "wiPlatform.h"
 
 #ifdef _WIN32
-#define WICKEDENGINE_BUILD_DX12
+//#define WICKEDENGINE_BUILD_DX12
 #endif // _WIN32
 
 #ifdef WICKEDENGINE_BUILD_DX12
@@ -121,27 +121,6 @@ namespace wiGraphics
 				uint64_t calculateOffset(uint8_t* address);
 			};
 			ResourceFrameAllocator resourceBuffer[COMMANDLIST_COUNT];
-
-			struct TextureFrameAllocator
-			{
-				struct TextureUpdateBuffer
-				{
-					ID3D12Resource*	 uploadResource = nullptr;
-					GPUBuffer		 uploadBuffer;
-					uint8_t*		 dataBegin = nullptr;
-					uint8_t*		 dataCur = nullptr;
-					uint8_t*		 dataEnd = nullptr;
-				};
-
-				GraphicsDevice_DX12* device = nullptr;
-				std::vector<TextureUpdateBuffer*> updateBufferList;
-				TextureUpdateBuffer* currBuffer;
-
-				void init( GraphicsDevice_DX12* pDevice );
-				void allocate(size_t dataSize, uint8_t** pOutData, uint32_t* pOutOffset, ID3D12Resource** pOutResource);
-				void clear();
-			};
-			TextureFrameAllocator textureBuffer[COMMANDLIST_COUNT];
 		};
 		FrameResources frames[BUFFERCOUNT];
 		FrameResources& GetFrameResources() { return frames[GetFrameCount() % BUFFERCOUNT]; }
@@ -233,22 +212,24 @@ namespace wiGraphics
 
 		std::atomic<CommandList> cmd_count{ 0 };
 
+#ifdef GGREDUCED
+	public:
+		void* GetDeviceForIMGUI(void) override;
+		void* GetImmediateForIMGUI(void) override;
+		void* GetDeviceContext(int cmd) override;
+		void SetScissorArea(int cmd, const XMFLOAT4 area) override;
+		void SetRenderTarget(CommandList cmd, void* renderTarget) override;
+		void* MaterialGetSRV(void* resource) override;
+		void* GetBackBufferForGG(const SwapChain* swapchain) override;
+#endif
+
 	public:
 		GraphicsDevice_DX12(bool debuglayer = false, bool gpuvalidation = false);
 		virtual ~GraphicsDevice_DX12();
 
-	public:
-		void* GetDeviceForIMGUI(void) override;
-		void* GetImmediateForIMGUI(void) override;
-
-		GraphicsDeviceType GetType() const override { return GRAPHICS_DEVICE_TYPE_DX12; }
-		void* GetInternalDevice() const override { return device.Get(); }
-		void* GetInternalQueue() const override { return queues[QUEUE_GRAPHICS].queue.Get(); }
-
 		bool CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform::window_type window, SwapChain* swapChain) const override;
 		bool CreateBuffer(const GPUBufferDesc *pDesc, const SubresourceData* pInitialData, GPUBuffer *pBuffer) const override;
 		bool CreateTexture(const TextureDesc* pDesc, const SubresourceData *pInitialData, Texture *pTexture) const override;
-		bool CreateTextureExternal(const TextureDesc* pDesc, void* pExternalTexture, Texture *pTexture) const override;
 		bool CreateShader(SHADERSTAGE stage, const void *pShaderBytecode, size_t BytecodeLength, Shader *pShader) const override;
 		bool CreateSampler(const SamplerDesc *pSamplerDesc, Sampler *pSamplerState) const override;
 		bool CreateQueryHeap(const GPUQueryHeapDesc* pDesc, GPUQueryHeap* pQueryHeap) const override;
@@ -320,9 +301,11 @@ namespace wiGraphics
 		void DispatchMeshIndirect(const GPUBuffer* args, uint32_t args_offset, CommandList cmd) override;
 		void CopyResource(const GPUResource* pDst, const GPUResource* pSrc, CommandList cmd) override;
 #ifdef GGREDUCED
+		void CopyTexture2D_Region(const Texture* pDst, uint32_t dstMip, uint32_t dstX, uint32_t dstY, const Texture* pSrc, uint32_t srcMip, CommandList cmd) override;
+		void MSAAResolve(const Texture* pDst, const Texture* pSrc, CommandList cmd) override;
 		void UpdateTexture(const Texture* tex, uint32_t mipLevel, uint32_t arraySlice, CopyBox* dstBox, const void* data, uint32_t dataRowStride, CommandList cmd) override;
 		void GenerateMipmaps(Texture* tex, CommandList cmd) override;
-		void SetPresentMode(bool bPresentWhenSubmit) override;
+		void CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd) override;
 #endif
 		void UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize = -1) override;
 		void QueryBegin(const GPUQueryHeap* heap, uint32_t index, CommandList cmd) override;

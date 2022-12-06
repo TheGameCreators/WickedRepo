@@ -7,8 +7,7 @@
 #include "wiProfiler.h"
 
 #ifdef GGREDUCED
-bool ImGui_GetScissorArea(float* pX1, float* pY1, float* pX2, float* pY2);
-void ImGui_Update( wiGraphics::CommandList cmd );
+bool ImGuiHook_GetScissorArea(float* pX1, float* pY1, float* pX2, float* pY2);
 extern bool g_bNoTerrainRender;
 #define REMOVE_WICKED_PARTICLE
 #define REMOVE_WATER_RIPPLE
@@ -76,16 +75,10 @@ void RenderPath3D::ResizeBuffers()
 {
 	GraphicsDevice* device = wiRenderer::GetDevice();
 
-	if ( !resolutionOverride )
-	{
-		width3D = GetPhysicalWidth();
-		height3D = GetPhysicalHeight();
-	}
-
 	XMUINT2 internalResolution;
 	internalResolution.x = GetWidth3D();
 	internalResolution.y = GetHeight3D();
-	
+
 	camera->CreatePerspective((float)internalResolution.x, (float)internalResolution.y, camera->zNearP, camera->zFarP);
 	
 	// Render targets:
@@ -408,7 +401,7 @@ void RenderPath3D::ResizeBuffers()
 				RenderPassAttachment::LOADOP_LOAD,
 				RenderPassAttachment::STOREOP_STORE,
 				IMAGE_LAYOUT_SHADER_RESOURCE,
-				IMAGE_LAYOUT_DEPTHSTENCIL,
+				IMAGE_LAYOUT_DEPTHSTENCIL_READONLY,
 				IMAGE_LAYOUT_DEPTHSTENCIL_READONLY
 			)
 		);
@@ -595,21 +588,13 @@ void RenderPath3D::ResizeBuffers()
 }
 
 // desired 3D resolution, may be reduced internally due to FSR
-void RenderPath3D::Override3DResolution( uint32_t width, uint32_t height )
+void RenderPath3D::Set3DResolution( float width, float height )
 {
 	if ( width == 0 || height == 0 ) return;
 	if ( width3D == width && height3D == height ) return;
 
-	width3D = (uint32_t) (width / fsrUpScale);
-	height3D = (uint32_t) (height / fsrUpScale);
-	resolutionOverride = 1;
-
-	ResizeBuffers();
-}
-
-void RenderPath3D::Restore3DResolution()
-{
-	resolutionOverride = 0;
+	width3D = width / fsrUpScale;
+	height3D = height / fsrUpScale;
 
 	ResizeBuffers();
 }
@@ -619,11 +604,11 @@ void RenderPath3D::SetFSRScale( float scale )
 	if ( fsrUpScale == scale ) return;
 	if ( fsrUpScale == 0 ) return;
 	
-	uint32_t origWidth3D = (uint32_t) (width3D * fsrUpScale);
-	uint32_t origHeight3D = (uint32_t) (height3D * fsrUpScale);
+	float origWidth3D = width3D * fsrUpScale;
+	float origHeight3D = height3D * fsrUpScale;
 	fsrUpScale = scale;
-	width3D = (uint32_t) (origWidth3D / fsrUpScale);
-	height3D = (uint32_t) (origHeight3D / fsrUpScale);
+	width3D = origWidth3D / fsrUpScale;
+	height3D = origHeight3D / fsrUpScale;
 }
 
 void RenderPath3D::PreUpdate()
@@ -1298,12 +1283,12 @@ void RenderPath3D::Render( int mode ) const
 			}
 		}
 #endif
-		float waterHeight = visibility_main.scene->weather.oceanParameters.waterHeight + visibility_main.scene->weather.oceanParameters.wave_amplitude;
+		float waterHieght = visibility_main.scene->weather.oceanParameters.waterHeight + visibility_main.scene->weather.oceanParameters.wave_amplitude;
 
 		wiScene::CameraComponent clippedCamera = *camera;
 
-		if(clippedCamera.Eye.y > waterHeight)
-			clippedCamera.clipPlane = XMFLOAT4(0.0f, clippedCamera.Eye.y > waterHeight ? -1.0f : 1.0f, 0.0f, waterHeight);
+		if(clippedCamera.Eye.y > waterHieght)
+			clippedCamera.clipPlane = XMFLOAT4(0, clippedCamera.Eye.y > waterHieght ? -1 : 1, 0, waterHieght);
 
 		wiRenderer::UpdateCameraCB(clippedCamera, *previousCamera, camera_reflection, cmd);
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_MAIN, cmd, (drawscene_flags & ~wiRenderer::DRAWSCENE_OPAQUE) | wiRenderer::DRAWSCENE_TRANSPARENT);
@@ -1336,8 +1321,8 @@ void RenderPath3D::Render( int mode ) const
 
 #ifdef GGREDUCED
 		Viewport vp;
-		vp.Width = (float) GetWidth3D();
-		vp.Height = (float) GetHeight3D();
+		vp.Width = GetWidth3D();
+		vp.Height = GetHeight3D();
 		device->BindViewports(1, &vp, cmd);
 #endif
 
@@ -1375,15 +1360,8 @@ void RenderPath3D::Compose(CommandList cmd) const
 
 #ifdef GGREDUCED
 	XMFLOAT4 area;
-	if (ImGui_GetScissorArea(&area.x, &area.y, &area.z, &area.w) == true)
-	{
-		wiGraphics::Rect rect;
-		rect.left = (int32_t) area.x;
-		rect.top = (int32_t) area.y;
-		rect.right = (int32_t) area.z;
-		rect.bottom = (int32_t) area.w;
-		device->BindScissorRects( 1, &rect, cmd );
-	}
+	if (ImGuiHook_GetScissorArea(&area.x, &area.y, &area.z, &area.w) == true)
+		device->SetScissorArea(cmd, area);
 #endif
 
 	wiImage::Draw(GetLastPostprocessRT(), fx, cmd);
@@ -1397,12 +1375,11 @@ void RenderPath3D::Compose(CommandList cmd) const
 	}
 
 #ifdef GGREDUCED
-	wiGraphics::Rect rect;
-	rect.left = INT_MIN;
-	rect.top = INT_MIN;
-	rect.right = INT_MAX;
-	rect.bottom = INT_MAX;
-	device->BindScissorRects( 1, &rect, cmd );
+	XMUINT2 resolution;
+	resolution.x = GetWidth3D();
+	resolution.y = GetHeight3D();
+	area = { 0, 0, (float)resolution.x, (float)resolution.y };
+	device->SetScissorArea(cmd, area);
 #endif
 
 	RenderPath2D::Compose(cmd);
@@ -1428,8 +1405,6 @@ void RenderPath3D::RenderFrameSetUp(CommandList cmd) const
 
 	device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 	wiRenderer::UpdateRenderData(visibility_main, frameCB, cmd);
-
-	ImGui_Update( cmd );
 }
 
 void RenderPath3D::RenderAO(CommandList cmd) const
@@ -2135,8 +2110,8 @@ void RenderPath3D::setFSREnabled(bool value)
 		TextureDesc desc;
 		desc.BindFlags = BIND_SHADER_RESOURCE | BIND_UNORDERED_ACCESS;
 		desc.Format = rtPostprocess_LDR[0].desc.Format;
-		desc.Width = (uint32_t) (GetWidth3D() * GetFSRScale());
-		desc.Height = (uint32_t) (GetHeight3D() * GetFSRScale());
+		desc.Width = GetWidth3D() * GetFSRScale();
+		desc.Height = GetHeight3D() * GetFSRScale();
 		device->CreateTexture(&desc, nullptr, &rtFSR[0]);
 		device->SetName(&rtFSR[0], "rtFSR[0]");
 		device->CreateTexture(&desc, nullptr, &rtFSR[1]);

@@ -119,7 +119,7 @@ void MainComponent::Run()
 #ifdef GGREDUCED
 	//LB: if leave app, timer.elapsed() is going to be huge on returning, causing weird animation issues
 	// so cap this to a maximum so it reduces the glitch the user sees (without causing anything over 30fps to misbehave)
-	float dThirtyFPSinMS = (1.0f / 30.0f);
+	double dThirtyFPSinMS = (1.0f / 30.0f);
 	if (deltaTime > dThirtyFPSinMS) deltaTime = dThirtyFPSinMS;
 #endif
 	timer.record();
@@ -256,7 +256,7 @@ void MainComponent::Render( int mode )
 		GetActivePath()->Render( mode );
 	}
 
-	wiProfiler::EndRange(range); // Render 
+	wiProfiler::EndRange(range); // Render
 }
 
 void MainComponent::Compose(CommandList cmd)
@@ -386,21 +386,12 @@ void MainComponent::SetWindow(wiPlatform::window_type window, bool fullscreen)
 	// User can also create a graphics device if custom logic is desired, but they must do before this function!
 	if (wiRenderer::GetDevice() == nullptr)
 	{
-		bool debugdevice = false;//wiStartupArguments::HasArgument("debugdevice");
-		bool gpuvalidation = false;//wiStartupArguments::HasArgument("gpuvalidation");
+		bool debugdevice = wiStartupArguments::HasArgument("debugdevice");
+		bool gpuvalidation = wiStartupArguments::HasArgument("gpuvalidation");
 
-#ifdef _DEBUG
-		debugdevice = true;
-#endif
-
-		//bool use_dx11 = wiStartupArguments::HasArgument("dx11");
-		//bool use_dx12 = wiStartupArguments::HasArgument("dx12");
-		//bool use_vulkan = wiStartupArguments::HasArgument("vulkan");
-
-		//LB: Early DX12 has AMD issues - will need latest Wicked to Resolve Eventually
-		bool use_dx11 = true;// false;
-		bool use_dx12 = false;// true;
-		bool use_vulkan = false;
+		bool use_dx11 = wiStartupArguments::HasArgument("dx11");
+		bool use_dx12 = wiStartupArguments::HasArgument("dx12");
+		bool use_vulkan = wiStartupArguments::HasArgument("vulkan");
 
 #ifndef WICKEDENGINE_BUILD_DX11
 		if (use_dx11) {

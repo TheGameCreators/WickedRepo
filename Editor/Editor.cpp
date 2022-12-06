@@ -107,7 +107,7 @@ winrt::fire_and_forget uwp_copy_assets()
 // Just to allow editor to compile
 bool g_bNoSwapchainPresent = false;
 bool g_bNo2DRender = false;
-void ImGuiHook_RenderCall(ID3D11DeviceContext * aa)
+void ImGuiHook_RenderCall(void * aa)
 {
 }
 bool ImGuiHook_GetScissorArea(float * aaa, float * bbb, float * ccc, float * ddd)

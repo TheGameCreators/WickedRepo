@@ -79,20 +79,6 @@ namespace GGGrass
 	extern "C" void __GGGrass_Draw_ShadowMap_EMPTY( const Frustum* frustum, int cascade, wiGraphics::CommandList cmd ) {}
 	#pragma comment(linker, "/alternatename:GGGrass_Draw_ShadowMap=__GGGrass_Draw_ShadowMap_EMPTY")
 }
-
-namespace GPUParticles
-{
-	extern "C" void gpup_update_render_data( const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd );
-	extern "C" void __gpup_update_render_data_EMPTY( const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd ) {}
-	// use gpup_update_render_data() if it is defined, otherwise use __gpup_update_render_data_EMPTY()
-	#pragma comment(linker, "/alternatename:gpup_update_render_data=__gpup_update_render_data_EMPTY")
-}
-
-extern "C" void UpdateAnimationTexture( wiGraphics::CommandList cmd );
-extern "C" void __UpdateAnimationTexture_EMPTY( wiGraphics::CommandList cmd ) {}
-// use UpdateAnimationTexture() if it is defined, otherwise use __UpdateAnimationTexture_EMPTY()
-#pragma comment(linker, "/alternatename:UpdateAnimationTexture=__UpdateAnimationTexture_EMPTY")
-
 #endif
 
 using namespace std;
@@ -1731,7 +1717,6 @@ void LoadShaders()
 		desc.bs = &blendStates[BSTYPE_COLORWRITEDISABLE];
 		desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
 		desc.pt = TRIANGLESTRIP;
-		desc.stripRestart = RESTART_FFFF;
 
 		device->CreatePipelineState(&desc, &PSO_occlusionquery);
 		});
@@ -1910,7 +1895,6 @@ void LoadShaders()
 		desc.rs = &rasterizers[RSTYPE_DOUBLESIDED];
 		desc.dss = &depthStencils[DSSTYPE_XRAY];
 		desc.pt = TRIANGLESTRIP;
-		desc.stripRestart = RESTART_FFFF;
 
 		device->CreatePipelineState(&desc, &PSO_lensflare);
 		});
@@ -2063,7 +2047,6 @@ void LoadShaders()
 			desc.rs = &rasterizers[RSTYPE_FRONT];
 			desc.bs = &blendStates[BSTYPE_TRANSPARENT];
 			desc.pt = TRIANGLESTRIP;
-			desc.stripRestart = RESTART_FFFF;
 			break;
 		case DEBUGRENDERING_RAYTRACE_BVH:
 			desc.vs = &shaders[VSTYPE_RAYTRACE_SCREEN];
@@ -4690,13 +4673,6 @@ void UpdateRenderData(
 		wiProfiler::EndRange(range);
 	}
 
-#ifdef GGREDUCED
-	//PE: strange things happen when placed above, moved here, draw order looks fine.
-	GPUParticles::gpup_update_render_data( wiScene::GetCamera(), cmd );
-
-	UpdateAnimationTexture( cmd );
-#endif
-
 	// Compute water simulation:
 	if (vis.scene->weather.IsOceanEnabled())
 	{
@@ -5681,7 +5657,6 @@ void DrawShadowmaps(
 					#endif
 					{
 					#endif
-
 						RenderQueue renderQueue;
 						bool transparentShadowsRequested = false;
 						if ( cascade < 3 ) // skip wicked engine objects in last 2 cascades
@@ -8454,7 +8429,7 @@ void GenerateMipChain(const Texture& texture, MIPGENFILTER filter, CommandList c
 	}
 }
 
-void CopyTexture2DArea(const Texture& dst, int DstMIP, int DstX, int DstY, const Texture& src, int SrcX, int SrcY, int SrcMIP, CommandList cmd, BORDEREXPANDSTYLE borderExpand)
+void CopyTexture2D(const Texture& dst, int DstMIP, int DstX, int DstY, const Texture& src, int SrcMIP, CommandList cmd, BORDEREXPANDSTYLE borderExpand)
 {
 	const TextureDesc& desc_dst = dst.GetDesc();
 	const TextureDesc& desc_src = src.GetDesc();
@@ -8494,8 +8469,6 @@ void CopyTexture2DArea(const Texture& dst, int DstMIP, int DstX, int DstY, const
 	CopyTextureCB cb;
 	cb.xCopyDest.x = DstX;
 	cb.xCopyDest.y = DstY;
-	cb.xCopySrc.x = SrcX;//GGREDUCED
-	cb.xCopySrc.y = SrcY;//GGREDUCED
 	cb.xCopySrcSize.x = desc_src.Width >> SrcMIP;
 	cb.xCopySrcSize.y = desc_src.Height >> SrcMIP;
 	cb.xCopySrcMIP = SrcMIP;
@@ -8530,10 +8503,6 @@ void CopyTexture2DArea(const Texture& dst, int DstMIP, int DstX, int DstY, const
 	device->EventEnd(cmd);
 }
 
-void CopyTexture2D(const Texture& dst, int DstMIP, int DstX, int DstY, const Texture& src, int SrcMIP, CommandList cmd, BORDEREXPANDSTYLE borderExpand)
-{
-	CopyTexture2DArea(dst, DstMIP, DstX, DstY, src, 0, 0, SrcMIP, cmd, borderExpand);
-}
 
 void RayTraceScene(
 	const Scene& scene,

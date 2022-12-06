@@ -222,4 +222,3 @@ WickedEngine/__pycache__/compile_shaders_hlsl6.cpython-36.pyc
 *.cso
 *.wishadermeta
 wiShaderdump.h
-OfflineShaderCompiler.exe

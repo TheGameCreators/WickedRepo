@@ -3111,6 +3111,43 @@ using namespace Vulkan_Internal;
 
 		return true;
 	}
+
+#ifdef GGREDUCED
+	void* GraphicsDevice_Vulkan::GetDeviceForIMGUI(void)
+	{
+		assert(0);
+		return NULL;
+	}
+	void* GraphicsDevice_Vulkan::GetBackBufferForGG(const SwapChain* swapchain)
+	{
+		return NULL;
+	}
+	void* GraphicsDevice_Vulkan::GetImmediateForIMGUI(void)
+	{
+		assert(0);
+		return NULL;
+	}
+	void* GraphicsDevice_Vulkan::GetDeviceContext(int cmd)
+	{
+		assert(0);
+		return NULL;
+	}
+	void GraphicsDevice_Vulkan::SetScissorArea(int cmd, const XMFLOAT4 area)
+	{
+		assert(0);
+	}
+	void GraphicsDevice_Vulkan::SetRenderTarget(CommandList cmd, void* renderView)
+	{
+		assert(0);
+	}
+
+	void* GraphicsDevice_Vulkan::MaterialGetSRV(void* resource)
+	{
+		assert(0);
+		return NULL;
+	}
+
+#endif
 	bool GraphicsDevice_Vulkan::CreateBuffer(const GPUBufferDesc *pDesc, const SubresourceData* pInitialData, GPUBuffer *pBuffer) const
 	{
 		auto internal_state = std::make_shared<Buffer_Vulkan>();
@@ -6195,16 +6232,6 @@ using namespace Vulkan_Internal;
 		return result;
 	}
 
-	void* GraphicsDevice_Vulkan::GetDeviceForIMGUI(void)
-	{
-		assert(0);
-		return NULL;
-	}
-	void* GraphicsDevice_Vulkan::GetImmediateForIMGUI(void)
-	{
-		assert(0);
-		return NULL;
-	}
 
 	void GraphicsDevice_Vulkan::WaitCommandList(CommandList cmd, CommandList wait_for)
 	{
@@ -6781,10 +6808,19 @@ using namespace Vulkan_Internal;
 		}
 	}
 #ifdef GGREDUCED
+	void GraphicsDevice_Vulkan::CopyTexture2D_Region(const Texture* pDst, uint32_t dstMip, uint32_t dstX, uint32_t dstY, const Texture* pSrc, uint32_t srcMip, CommandList cmd)
+	{
+	}
+	void GraphicsDevice_Vulkan::MSAAResolve(const Texture* pDst, const Texture* pSrc, CommandList cmd)
+	{
+	}
 	void GraphicsDevice_Vulkan::UpdateTexture(const Texture* tex, uint32_t mipLevel, uint32_t arraySlice, CopyBox* dstBox, const void* data, uint32_t dataRowStride, CommandList cmd)
 	{
 	}
 	void GraphicsDevice_Vulkan::GenerateMipmaps(Texture* tex, CommandList cmd)
+	{
+	}
+	void GraphicsDevice_Vulkan::CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd)
 	{
 	}
 #endif

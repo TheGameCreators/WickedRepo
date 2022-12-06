@@ -51,21 +51,20 @@ private:
 	float rainScaleY = 1.0;
 	float rainOffsetX = 0.0;
 	float rainOffsetY = 0.0;
-	float rainRefreactionScale = 0.01f;
+	float rainRefreactionScale = 0.01;
 	bool rainEnabled = false;
 
 	bool snowEnabled = false;
 	float snowLayers = 15.0;
-	float snowDepth = 0.5f;
-	float snowWindiness = 0.5f;
-	float snowSpeed = 0.15f;
+	float snowDepth = 0.5;
+	float snowWindiness = 0.5;
+	float snowSpeed = 0.15;
 	float snowOpacity = 1.0;
 	float snowOffset = 0.0;
 
 	// 3D resolution is different from screen resolution when rendering VR, and maybe in other cases like FSR
-	uint32_t width3D;
-	uint32_t height3D;
-	int resolutionOverride = 0;
+	float width3D;
+	float height3D;
 	float fsrUpScale = 1.0f;
 #endif	
 
@@ -343,10 +342,9 @@ public:
 
 	virtual void setMSAASampleCount(uint32_t value) { msaaSampleCount = value; }
 
-	void Override3DResolution( uint32_t width, uint32_t height );
-	void Restore3DResolution();
-	uint32_t GetWidth3D() const { return width3D; }
-	uint32_t GetHeight3D() const { return height3D; }
+	void Set3DResolution( float width, float height );
+	float GetWidth3D() const { return width3D; }
+	float GetHeight3D() const { return height3D; }
 
 	void SetFSRScale( float scale );
 	float GetFSRScale() const { return fsrUpScale; }

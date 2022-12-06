@@ -80,21 +80,23 @@ namespace wiGraphics
 		struct EmptyResourceHandle {}; // only care about control-block
 		std::shared_ptr<EmptyResourceHandle> emptyresource;
 
-	public:
-		GraphicsDevice_DX11(bool debuglayer = false);
-
+#ifdef GGREDUCED
 	public:
 		void* GetDeviceForIMGUI(void) override;
 		void* GetImmediateForIMGUI(void) override;
+		void* GetDeviceContext(int cmd) override;
+		void SetScissorArea(int cmd, const XMFLOAT4 area) override;
+		void SetRenderTarget(CommandList cmd, void* renderTarget) override;
+		void* MaterialGetSRV(void* resource) override;
+		void* GetBackBufferForGG(const SwapChain* swapchain) override;
+#endif
 
-		GraphicsDeviceType GetType() const override { return GRAPHICS_DEVICE_TYPE_DX11; }
-		void* GetInternalDevice() const override { return device.Get(); }
-		void* GetInternalQueue() const override { return 0; }
+	public:
+		GraphicsDevice_DX11(bool debuglayer = false);
 
 		bool CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform::window_type window, SwapChain* swapChain) const override;
 		bool CreateBuffer(const GPUBufferDesc *pDesc, const SubresourceData* pInitialData, GPUBuffer *pBuffer) const override;
 		bool CreateTexture(const TextureDesc* pDesc, const SubresourceData *pInitialData, Texture *pTexture) const override;
-		bool CreateTextureExternal(const TextureDesc* pDesc, void* pExternalTexture, Texture *pTexture) const override;
 		bool CreateShader(SHADERSTAGE stage, const void *pShaderBytecode, size_t BytecodeLength, Shader *pShader) const override;
 		bool CreateSampler(const SamplerDesc *pSamplerDesc, Sampler *pSamplerState) const override;
 		bool CreateQueryHeap(const GPUQueryHeapDesc *pDesc, GPUQueryHeap *pQueryHeap) const override;
@@ -152,9 +154,11 @@ namespace wiGraphics
 		void DispatchIndirect(const GPUBuffer* args, uint32_t args_offset, CommandList cmd) override;
 		void CopyResource(const GPUResource* pDst, const GPUResource* pSrc, CommandList cmd) override;
 #ifdef GGREDUCED
+		void CopyTexture2D_Region(const Texture* pDst, uint32_t dstMip, uint32_t dstX, uint32_t dstY, const Texture* pSrc, uint32_t srcMip, CommandList cmd) override;
+		void MSAAResolve(const Texture* pDst, const Texture* pSrc, CommandList cmd) override;
 		void UpdateTexture(const Texture* tex, uint32_t mipLevel, uint32_t arraySlice, CopyBox* dstBox, const void* data, uint32_t dataRowStride, CommandList cmd) override;
 		void GenerateMipmaps(Texture* tex, CommandList cmd) override;
-		void SetPresentMode(bool bPresentWhenSubmit) override;
+		void CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd) override;
 #endif
 		void UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize = -1) override;
 		void QueryBegin(const GPUQueryHeap* heap, uint32_t index, CommandList cmd) override;

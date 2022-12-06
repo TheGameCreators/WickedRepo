@@ -37,14 +37,8 @@ namespace wiHelper
 
 	void screenshot(const wiGraphics::SwapChain& swapchain, const std::string& name = "");
 
-	// GGREDUCED - put data back into texture
-	bool loadTextureFromMemory(const wiGraphics::Texture& texture, std::vector<uint8_t>& texturedata);
-
 	// Save raw pixel data from the texture to memory
 	bool saveTextureToMemory(const wiGraphics::Texture& texture, std::vector<uint8_t>& texturedata);
-
-	// GGREDUCED Convert texture data to RGBA
-	void convertTextureToRGBA(const std::vector<uint8_t>& texturedata, const wiGraphics::TextureDesc& desc, bool bBGRAOutput);
 
 	// Save texture to memory as a file format
 	bool saveTextureToMemoryFile(const wiGraphics::Texture& texture, const std::string& fileExtension, std::vector<uint8_t>& filedata);
@@ -115,7 +109,4 @@ namespace wiHelper
 
 	// Spins for the given time and does nothing (OS can not overtake)
 	void Spin(float milliseconds);
-
-	int GetBitsPerPixel(wiGraphics::FORMAT value);
-	const char* GetFormatName(wiGraphics::FORMAT value);
 };

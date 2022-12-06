@@ -33,7 +33,7 @@ CBUFFER(CopyTextureCB, CBSLOT_RENDERER_UTILITY)
 {
 	int2 xCopyDest;
 	int2 xCopySrcSize;
-	int2 xCopySrc; //GGREDUCED
+	int2 padding0;
 	int  xCopySrcMIP;
 	int  xCopyBorderExpandStyle;
 };

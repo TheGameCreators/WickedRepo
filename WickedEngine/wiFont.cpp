@@ -265,7 +265,6 @@ void LoadShaders()
 	desc.dss = &depthStencilState;
 	desc.rs = &rasterizerState;
 	desc.pt = TRIANGLESTRIP;
-	desc.stripRestart = RESTART_FFFF;
 	wiRenderer::GetDevice()->CreatePipelineState(&desc, &PSO);
 }
 void Initialize()

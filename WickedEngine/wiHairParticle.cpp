@@ -399,7 +399,6 @@ namespace wiHairParticle_Internal
 				desc.rs = &ncrs;
 				desc.dss = &dss_default;
 				desc.pt = TRIANGLESTRIP;
-				desc.stripRestart = RESTART_FFFF;
 
 				switch (i)
 				{
