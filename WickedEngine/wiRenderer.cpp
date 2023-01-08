@@ -3618,7 +3618,9 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 						{
 							vis.closestRefPlane = dist;
 							const TransformComponent& transform = vis.scene->transforms[object.transform_index];
-							XMVECTOR P = XMLoadFloat3( &XMFLOAT3(centerX, centerY, centerZ) );
+							//XMVECTOR P = XMLoadFloat3(&XMFLOAT3(centerX, centerY, centerZ));
+							XMFLOAT3 tmp = XMFLOAT3(centerX, centerY, centerZ);
+							XMVECTOR P = XMLoadFloat3( &tmp );
 							XMVECTOR N = XMVectorSet(0, 1, 0, 0);
 							N = XMVector3TransformNormal(N, XMLoadFloat4x4(&transform.world));
 							N = XMVector3Normalize( N );
