@@ -650,7 +650,8 @@ void RenderPath3D::Update(float dt)
 		}
 	}
 
-	const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
+	//const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
+	const float maxApparentSize = 0.000002f; 
 
 	// Frustum culling for main camera:
 	visibility_main.layerMask = getLayerMask();
