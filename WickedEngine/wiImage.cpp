@@ -157,17 +157,38 @@ namespace wiImage
 			M = M * canvas.GetProjection();
 		}
 
-		for (int i = 0; i < 4; ++i)
-		{
-			XMVECTOR V = XMVectorSet(params.corners[i].x - params.pivot.x, params.corners[i].y - params.pivot.y, 0, 1);
-			V = XMVector2Transform(V, M); // division by w will happen on GPU
-			XMStoreFloat4(&cb.xCorners[i], V);
-		}
+		//for (int i = 0; i < 4; ++i)
+		//{
+		//	XMVECTOR V = XMVectorSet(params.corners[i].x - params.pivot.x, params.corners[i].y - params.pivot.y, 0, 1);
+		//	V = XMVector2Transform(V, M); // division by w will happen on GPU
+		//	XMStoreFloat4(&cb.xCorners[i], V);
+		//}
+
+		//PE: Fix AMD issue - cant index dynamically (Black Screen).
+		XMVECTOR V = XMVectorSet(params.corners[0].x - params.pivot.x, params.corners[0].y - params.pivot.y, 0, 1);
+		V = XMVector2Transform(V, M); // division by w will happen on GPU
+		XMStoreFloat4(&cb.corners0, V);
+
+		V = XMVectorSet(params.corners[1].x - params.pivot.x, params.corners[1].y - params.pivot.y, 0, 1);
+		V = XMVector2Transform(V, M); // division by w will happen on GPU
+		XMStoreFloat4(&cb.corners1, V);
+
+		V = XMVectorSet(params.corners[2].x - params.pivot.x, params.corners[2].y - params.pivot.y, 0, 1);
+		V = XMVector2Transform(V, M); // division by w will happen on GPU
+		XMStoreFloat4(&cb.corners2, V);
+
+		V = XMVectorSet(params.corners[3].x - params.pivot.x, params.corners[3].y - params.pivot.y, 0, 1);
+		V = XMVector2Transform(V, M); // division by w will happen on GPU
+		XMStoreFloat4(&cb.corners3, V);
 
 		if (params.isMirrorEnabled())
 		{
-			std::swap(cb.xCorners[0], cb.xCorners[1]);
-			std::swap(cb.xCorners[2], cb.xCorners[3]);
+			//std::swap(cb.xCorners[0], cb.xCorners[1]);
+			//std::swap(cb.xCorners[2], cb.xCorners[3]);
+
+			//PE: Fix AMD issue - cant index dynamically (Black Screen).
+			std::swap(cb.corners0, cb.corners1);
+			std::swap(cb.corners2, cb.corners3);
 		}
 
 		const TextureDesc& desc = texture->GetDesc();
