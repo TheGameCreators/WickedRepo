@@ -1398,6 +1398,10 @@ void RenderPath3D::ComposeSimple(CommandList cmd) const
 
 	wiImage::Draw(GetLastPostprocessRT(), fx, cmd);
 }
+void RenderPath3D::ComposeSimple2D(CommandList cmd) const
+{
+	RenderPath2D::Compose(cmd);
+}
 #endif
 
 void RenderPath3D::RenderFrameSetUp(CommandList cmd) const
