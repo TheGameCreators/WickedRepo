@@ -1340,11 +1340,25 @@ namespace wiScene
 
 		// Environment probe cubemap array state:
 		static constexpr uint32_t envmapCount = 16;
+#ifdef GGREDUCED
+		uint32_t envmapRes = 128;
+		uint32_t envmapNewRes = 128;
+#else
 		static constexpr uint32_t envmapRes = 128;
+#endif
 		static constexpr uint32_t envmapMIPs = 8;
 		wiGraphics::Texture envrenderingDepthBuffer;
 		wiGraphics::Texture envmapArray;
 		std::vector<wiGraphics::RenderPass> renderpasses_envmap;
+
+#ifdef GGREDUCED
+		void SetEnvProbeResolution (uint32_t iSize)
+		{
+			envmapNewRes = iSize;
+			//delete envmapArray.internal_state.get(); if we find a way to delete the old envMap we can adjust the resolution live!
+			//envmapArray.internal_state = NULL;
+		}
+#endif
 
 		// Impostor texture array state:
 		static constexpr uint32_t maxImpostorCount = 8;

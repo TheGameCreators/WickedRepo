@@ -2622,7 +2622,10 @@ void GraphicsDevice_DX11::Map(const GPUResource* resource, Mapping* mapping) con
 	}
 	else
 	{
-		assert(0);
+		// can gracefully fail to map
+		#ifndef GGREDUCED
+		assert(0); 
+		#endif
 		mapping->data = nullptr;
 		mapping->rowpitch = 0;
 	}

@@ -3654,8 +3654,14 @@ namespace wiScene
 	{
 		assert(probes.GetCount() == aabb_probes.GetCount());
 
+#ifdef GGREDUCED
+		if (!envmapArray.IsValid() || envmapNewRes != envmapRes) // even when zero probes, this will be created, since sometimes only the sky will be rendered into it
+		{
+			envmapRes = envmapNewRes;
+#else
 		if (!envmapArray.IsValid()) // even when zero probes, this will be created, since sometimes only the sky will be rendered into it
 		{
+#endif
 			GraphicsDevice* device = wiRenderer::GetDevice();
 
 			TextureDesc desc;
