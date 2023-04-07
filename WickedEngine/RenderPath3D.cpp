@@ -64,7 +64,9 @@ namespace GGGrass {
 
 namespace GPUParticles
 {
-	extern "C" void gpup_draw( const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd );
+	extern "C" void gpup_draw(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd);
+	extern "C" void gpup_draw_init(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd);
+	extern "C" void gpup_draw_bydistance(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd, float fDistanceFromCamera);
 	extern "C" void __gpup_draw_EMPTY( const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd ) {}
 	// use gpup_draw() if it is defined, otherwise use __gpup_draw_EMPTY()
 	#pragma comment(linker, "/alternatename:gpup_draw=__gpup_draw_EMPTY")
@@ -797,6 +799,10 @@ void RenderPath3D::Render( int mode ) const
 
 		auto range = wiProfiler::BeginRangeGPU("Z-Prepass - Scene", cmd);
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_PREPASS, cmd, drawscene_flags);
+
+		// write depth for transparent objects that are solid (opaque=100%) like guns and solid doors with windows in		
+		wiRenderer::DrawScene(visibility_main, RENDERPASS_PREPASS, cmd, wiRenderer::DRAWSCENE_TRANSPARENT);
+
 		wiProfiler::EndRange(range);
 
 #ifdef GGREDUCED
@@ -1672,6 +1678,13 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 #ifndef REMOVE_WATER_RIPPLE
 		device->BindResource(PS, &rtWaterRipple, TEXSLOT_RENDERPATH_WATERRIPPLES, cmd);
 #endif
+
+#ifdef GGREDUCED
+		auto particlerange = wiProfiler::BeginRangeGPU("Particles - Init Render", cmd);
+		GPUParticles::gpup_draw_init(wiScene::GetCamera(), cmd);
+		wiProfiler::EndRange(particlerange);
+#endif
+
 		uint32_t drawscene_flags = 0;
 		drawscene_flags |= wiRenderer::DRAWSCENE_TRANSPARENT;
 		drawscene_flags |= wiRenderer::DRAWSCENE_OCCLUSIONCULLING;
@@ -1679,6 +1692,14 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 		drawscene_flags |= wiRenderer::DRAWSCENE_TESSELLATION;
 		drawscene_flags |= wiRenderer::DRAWSCENE_OCEAN;
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_MAIN, cmd, drawscene_flags);
+
+#ifdef GGREDUCED
+		GPUParticles::gpup_draw_bydistance(wiScene::GetCamera(), cmd, 0.0f);
+		// repair constant buffers changed by particle shader
+		//BindCommonResources(cmd);
+		//BindConstantBuffers(VS, cmd);
+		//BindConstantBuffers(PS, cmd);
+#endif
 
 		device->EventEnd(cmd);
 		wiProfiler::EndRange(range); // Transparent Scene
@@ -1739,22 +1760,20 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 	}
 
 	wiRenderer::DrawDebugWorld(*scene, *camera, *this, cmd);
-
-#ifdef GGREDUCED
-	auto range = wiProfiler::BeginRangeGPU("Particles - Render", cmd);
-#else
+	#ifdef GGREDUCED
+	#else
 	auto range = wiProfiler::BeginRangeGPU("EmittedParticles - Render", cmd);
-#endif
+	#endif
 
-#ifndef REMOVE_WICKED_PARTICLE
+	#ifndef REMOVE_WICKED_PARTICLE
 	wiRenderer::DrawSoftParticles(visibility_main, rtLinearDepth, false, cmd);
-#endif
-#ifdef GGREDUCED
+	#endif
+	#ifdef GGREDUCED
 	//PE: strange things happen when placed above, moved here, draw order looks fine.
-	GPUParticles::gpup_draw(wiScene::GetCamera(), cmd);
-#endif
-
+	//GPUParticles::gpup_draw(wiScene::GetCamera(), cmd); moved further up and incorporated into the DrawScene as particles need to be rendered back to front WITH other transparent objects (ie. window, window, particle, window)
+	#else
 	wiProfiler::EndRange(range);
+	#endif
 
 	device->RenderPassEnd(cmd);
 

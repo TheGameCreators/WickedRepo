@@ -252,6 +252,9 @@ namespace wiScene
 		inline BLENDMODE GetBlendMode() const { if (userBlendMode == BLENDMODE_OPAQUE && (GetRenderTypes() & RENDERTYPE_TRANSPARENT)) return BLENDMODE_ALPHA; else return userBlendMode; }
 		inline bool IsCastingShadow() const { return _flags & CAST_SHADOW; }
 		inline bool IsAlphaTestEnabled() const { return alphaRef <= 1.0f - 1.0f / 256.0f; }
+#ifdef GGREDUCED
+		inline float GetAlphaRef() const { return alphaRef; }
+#endif
 		inline bool IsUsingVertexColors() const { return _flags & USE_VERTEXCOLORS; }
 		inline bool IsUsingWind() const { return _flags & USE_WIND; }
 		inline bool IsReceiveShadow() const { return (_flags & DISABLE_RECEIVE_SHADOW) == 0; }
@@ -1354,9 +1357,8 @@ namespace wiScene
 #ifdef GGREDUCED
 		void SetEnvProbeResolution (uint32_t iSize)
 		{
+			// Wicked Not Entirely Support Changing This (For Now)!
 			envmapNewRes = iSize;
-			//delete envmapArray.internal_state.get(); if we find a way to delete the old envMap we can adjust the resolution live!
-			//envmapArray.internal_state = NULL;
 		}
 #endif
 

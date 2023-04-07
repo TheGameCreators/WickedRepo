@@ -79,6 +79,11 @@ namespace GGGrass
 	extern "C" void __GGGrass_Draw_ShadowMap_EMPTY( const Frustum* frustum, int cascade, wiGraphics::CommandList cmd ) {}
 	#pragma comment(linker, "/alternatename:GGGrass_Draw_ShadowMap=__GGGrass_Draw_ShadowMap_EMPTY")
 }
+
+namespace GPUParticles
+{
+	extern "C" void gpup_draw_bydistance(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd, float fDistanceFromCamera);
+}
 #endif
 
 using namespace std;
@@ -383,6 +388,12 @@ struct RenderBatch
 	{
 		return instance;
 	}
+#ifdef GGREDUCED
+	inline float GetDistance() const
+	{
+		return distance;
+	}
+#endif
 };
 
 // This is just a utility that points to a linear array of render batches:
@@ -2906,10 +2917,22 @@ void RenderMeshes(
 )
 {
 	if (renderQueue.empty())
+	{
+#ifdef GGREDUCED
+		if (renderPass == RENDERPASS_MAIN && renderTypeFlags & RENDERTYPE_TRANSPARENT)
+		{
+			GPUParticles::gpup_draw_bydistance(wiScene::GetCamera(), cmd, 0.0f);
+			// repair constant buffers changed by particle shader
+			//BindCommonResources(cmd);
+			BindConstantBuffers(VS, cmd);
+			BindConstantBuffers(PS, cmd);
+		}
+#endif
 		return;
+	}
 
 		device->EventBegin("RenderMeshes", cmd);
-	const bool bindless = device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_BINDLESS_DESCRIPTORS);
+		const bool bindless = device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_BINDLESS_DESCRIPTORS);
 
 		tessellation = tessellation && device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_TESSELLATION);
 		if (tessellation)
@@ -2917,9 +2940,9 @@ void RenderMeshes(
 			BindConstantBuffers(DS, cmd);
 		}
 
-	const TextureDesc& lightmap_desc = vis.scene->lightmap.GetDesc();
-	const float lightmap_width_rcp = 1.0f / lightmap_desc.Width;
-	const float lightmap_height_rcp = 1.0f / lightmap_desc.Height;
+		const TextureDesc& lightmap_desc = vis.scene->lightmap.GetDesc();
+		const float lightmap_width_rcp = 1.0f / lightmap_desc.Width;
+		const float lightmap_height_rcp = 1.0f / lightmap_desc.Height;
 
 		// Do we need to compute a light mask for this pass on the CPU?
 		const bool forwardLightmaskRequest =
@@ -2972,7 +2995,11 @@ void RenderMeshes(
 			uint32_t dataOffset;
 			uint8_t userStencilRefOverride;
 			uint8_t forceAlphatestForDithering; // padded bool
-		uint16_t padding;
+#ifdef GGREDUCED
+			uint16_t paddingnickedfordistance;
+#else
+			uint16_t padding;
+#endif
 			AABB aabb;
 		};
 		InstancedBatch* instancedBatchArray = nullptr;
@@ -2988,7 +3015,7 @@ void RenderMeshes(
 			const uint32_t meshIndex = batch.GetMeshIndex();
 			const uint32_t instanceIndex = batch.GetInstanceIndex();
 			const ObjectComponent& instance = vis.scene->objects[instanceIndex];
-		const AABB& instanceAABB = vis.scene->aabb_objects[instanceIndex];
+			const AABB& instanceAABB = vis.scene->aabb_objects[instanceIndex];
 			const uint8_t userStencilRefOverride = instance.userStencilRef;
 
 			// When we encounter a new mesh inside the global instance array, we begin a new InstancedBatch:
@@ -3005,6 +3032,12 @@ void RenderMeshes(
 				instancedBatch->userStencilRefOverride = userStencilRefOverride;
 				instancedBatch->forceAlphatestForDithering = 0;
 				instancedBatch->aabb = AABB();
+#ifdef GGREDUCED
+				if(batch.GetDistance()<16000)
+					instancedBatch->paddingnickedfordistance = batch.GetDistance();
+				else
+					instancedBatch->paddingnickedfordistance = 16000;
+#endif
 				if (instancedBatchArray == nullptr)
 				{
 					instancedBatchArray = instancedBatch;
@@ -3017,7 +3050,7 @@ void RenderMeshes(
 
 			if (instance.IsImpostorPlacement())
 			{
-			float distance = wiMath::Distance(instanceAABB.getCenter(), vis.camera->Eye);
+				float distance = wiMath::Distance(instanceAABB.getCenter(), vis.camera->Eye);
 				float swapDistance = instance.impostorSwapDistance;
 				float fadeThreshold = instance.impostorFadeThresholdRadius;
 				dither = std::max(0.0f, distance - swapDistance) / fadeThreshold;
@@ -3102,6 +3135,22 @@ void RenderMeshes(
 				const MeshComponent& mesh = vis.scene->meshes[instancedBatch.meshIndex];
 
 #ifdef GGREDUCED
+				// special mode that can render an object TWICE (special feature for weapons that have multiple meshes that need to carve out the depth buffer before being rendered properly)
+				if(iDoubleRender==0 )
+				{
+					if (renderPass == RENDERPASS_MAIN && renderTypeFlags & RENDERTYPE_TRANSPARENT)
+					{
+						float fDistanceFromCamera = (float)instancedBatch.paddingnickedfordistance;
+						//float distance = wiMath::Distance(instancedBatch.aabb.getCenter(), vis.camera->Eye); // aabb empty :(
+						GPUParticles::gpup_draw_bydistance(wiScene::GetCamera(), cmd, fDistanceFromCamera);
+						//BindCommonResources(cmd);
+						BindConstantBuffers(VS, cmd);
+						BindConstantBuffers(PS, cmd);
+					}
+				}
+#endif
+
+#ifdef GGREDUCED
 				// I am sure there is a 'quicker' way to isolate the weapon meshes (arms and then gun mesh)
 				// possibly remove this and render a 'blank' gun before the real gun, with the blank having the FORCEDEPTH mode
 				if (mesh.subsets.size()>0)
@@ -3143,7 +3192,6 @@ void RenderMeshes(
 					push.mesh = device->GetDescriptorIndex(&mesh.descriptor, SRV);
 					//PE: https://github.com/turanszkij/WickedEngine/commit/54d11f1e9138813b7815e9d523f2e7b8fac523a2
 					push.instances = instanceBufferDescriptorIndex;
-					//push.instances = device->GetDescriptorIndex(instances.buffer, SRV);
 					push.instance_offset = instancedBatch.dataOffset;
 				}
 				else
@@ -3229,10 +3277,25 @@ void RenderMeshes(
 						else
 						{
 #ifdef GGREDUCED
+							// added transparent drawscene to transparencies, however..
+							bool alphatest = material.IsAlphaTestEnabled() || forceAlphaTestForDithering;
+							if (renderPass == RENDERPASS_PREPASS && renderTypeFlags & RENDERTYPE_TRANSPARENT)
+							{
+								if (material.GetAlphaRef() == 0.01f)
+								{
+									// allow transparent objects to write into the depth buffer for the prepass if they are special (weapon handles rendering differently)
+									alphatest = true;
+								}
+								else
+								{
+									// but ignore everything else as before
+									continue;
+								}
+							}
+
 							// if mesh is double sided, probably hair or leaves, so ensure NO DEPTH WRITE happens to mess up coverage!
 							// AND also uses double-sided with FORCEDEPTH for weapons to render backface to etch in depth volume, and front face to render weapon properly
 							BLENDMODE blendMode = material.GetBlendMode();
-							const bool alphatest = material.IsAlphaTestEnabled() || forceAlphaTestForDithering;
 							OBJECTRENDERING_DOUBLESIDED doublesided = (mesh.IsDoubleSided() || material.IsDoubleSided()) ? OBJECTRENDERING_DOUBLESIDED_ENABLED : OBJECTRENDERING_DOUBLESIDED_DISABLED;
 							if ((renderTypeFlags & RENDERTYPE_TRANSPARENT) && doublesided == OBJECTRENDERING_DOUBLESIDED_ENABLED)
 							{
@@ -6853,7 +6916,11 @@ void DrawDebugWorld(
 		{
 			const EnvironmentProbeComponent& probe = scene.probes[i];
 
-			XMMATRIX scale = XMMatrixScaling( 10, 10, 10 );
+#ifdef GGREDUCED
+			XMMATRIX scale = XMMatrixScaling( 0, 0, 0 );
+#else
+			XMMATRIX scale = XMMatrixScaling(10, 10, 10);
+#endif
 			XMMATRIX world = XMMatrixTranslationFromVector(XMLoadFloat3(&probe.position));
 			world = XMMatrixMultiply( scale, world );
 			XMStoreFloat4x4(&sb.g_xTransform, world);
