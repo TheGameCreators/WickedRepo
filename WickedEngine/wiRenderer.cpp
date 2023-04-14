@@ -6963,6 +6963,14 @@ void DrawDebugWorld(
 				continue;
 			}
 
+#ifdef GGREDUCED
+			if (probe.range >= 100000.000)
+			{
+				// hide extremely large ones - the global env probe
+				continue;
+			}
+#endif
+
 			Entity entity = scene.probes.GetEntity(i);
 			const TransformComponent& transform = *scene.transforms.GetComponent(entity);
 
