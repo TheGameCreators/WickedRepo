@@ -269,9 +269,12 @@ namespace wiResourceManager
 					success = device->CreateTexture(&desc, InitData.data(), &resource->texture);
 					device->SetName(&resource->texture, name.c_str());
 				}
-				else assert(0); // failed to load DDS
-
+				else
+				{
+					// do not want a crash in debug mode, just fail
+					//assert(0); // failed to load DDS 
 				}
+			}
 			else
 			{
 				// png, tga, jpg, etc. loader:
