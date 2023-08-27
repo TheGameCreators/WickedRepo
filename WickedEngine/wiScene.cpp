@@ -2295,439 +2295,473 @@ namespace wiScene
 	}
 	void Scene::RunAnimationUpdateSystem(wiJobSystem::context& ctx)
 	{
-		for (size_t i = 0; i < animations.GetCount(); ++i)
+#ifdef GGREDUCED
+		// extra loop to process primary animations, before allowing secondary to 'steal' the timer value to sync child animations to primary ones
+		for (int handleprimaryandsecondary = 0; handleprimaryandsecondary < 2; handleprimaryandsecondary++)
 		{
-			AnimationComponent& animation = animations[i];
+#endif
+			for (size_t i = 0; i < animations.GetCount(); ++i)
+			{
+				AnimationComponent& animation = animations[i];
 
 #ifdef GGREDUCED
-			if ((!animation.IsPlaying() && animation.timer == 0.0f) && animation.updateonce == false) continue;
-			animation.updateonce = false;
-#else
-			if (!animation.IsPlaying() && animation.timer == 0.0f)
-			{
-				continue;
-			}
-#endif
-
-			for (const AnimationComponent::AnimationChannel& channel : animation.channels)
-			{
-				assert(channel.samplerIndex < (int)animation.samplers.size());
-				AnimationComponent::AnimationSampler& sampler = animation.samplers[channel.samplerIndex];
-				if (sampler.data == INVALID_ENTITY)
+				if (handleprimaryandsecondary == 0 && animation.useprimaryanimtimer != 0) continue;
+				if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer == 0) continue;
+				if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer != 0)
 				{
-					// backwards-compatibility mode
-					sampler.data = CreateEntity();
-					animation_datas.Create(sampler.data) = sampler.backwards_compatibility_data;
-					sampler.backwards_compatibility_data.keyframe_times.clear();
-					sampler.backwards_compatibility_data.keyframe_data.clear();
+					// this results in getting some old data, not the one written into animations[i]!!
+					int iThisAnimIndexHereAndNow = -1;
+					for (size_t ii = 0; ii < animations.GetCount(); ++ii)
+					{
+						if (animation.useprimaryanimtimer == animations[ii].primaryanimid)
+						{
+							iThisAnimIndexHereAndNow = ii;
+							break;
+						}
+					}
+					if(iThisAnimIndexHereAndNow!=-1)
+					{
+						// this actually does not work, somehow reading older values than are generated inside this function, impressive!
+						animation.timer = animations[iThisAnimIndexHereAndNow].timer;
+						animation.speed = animations[iThisAnimIndexHereAndNow].speed;
+						animation.amount = animations[iThisAnimIndexHereAndNow].amount;
+					}
 				}
-				const AnimationDataComponent* animationdata = animation_datas.GetComponent(sampler.data);
-				if (animationdata == nullptr)
+				else
+				{
+					if ((!animation.IsPlaying() && animation.timer == 0.0f) && animation.updateonce == false) continue;
+				}
+				animation.updateonce = false;
+#else
+				if (!animation.IsPlaying() && animation.timer == 0.0f)
 				{
 					continue;
 				}
-
-				int keyLeft = 0;
-				int keyRight = 0;
-
-				if (animationdata->keyframe_times.back() < animation.timer)
-				{
-					// Rightmost keyframe is already outside animation, so just snap to last keyframe:
-					keyLeft = keyRight = (int)animationdata->keyframe_times.size() - 1;
-				}
-				else
-				{
-					float fAnimTimeEnd = animation.timer;
-
-#ifdef GGREDUCED
-					if (animation.IsLooped())
-					{
-						// this endures that in a loop mode, the last rightmost frame is locked, even when the animation.timer goes beyond to do the first frame interp
-						if (animation.timer > animation.end) fAnimTimeEnd = animation.end;
-					}
 #endif
 
-					// Search for the right keyframe (greater/equal to anim time):
-					while (animationdata->keyframe_times[keyRight++] < fAnimTimeEnd) {}
-					keyRight--;
-
-					// Left keyframe is just near right:
-					keyLeft = std::max(0, keyRight - 1);
-				}
-
-#ifdef GGREDUCED
-				// new dsadsa mode which can replace any frame with a different animation frame (used to wipe out Bip01 rotation when turning)
-				// but can be expanded to apply a second stream of animation so an object can play twi distinct animation tracks on different body parts
-				if (channel.iUsePreFrame >= 10000)
+				for (const AnimationComponent::AnimationChannel& channel : animation.channels)
 				{
-					if (channel.path == AnimationComponent::AnimationChannel::Path::ROTATION)
+					assert(channel.samplerIndex < (int)animation.samplers.size());
+					AnimationComponent::AnimationSampler& sampler = animation.samplers[channel.samplerIndex];
+					if (sampler.data == INVALID_ENTITY)
 					{
-						int iNewAnimFrame = channel.iUsePreFrame - 10000;
-						keyLeft = iNewAnimFrame;
-						keyRight = iNewAnimFrame;
+						// backwards-compatibility mode
+						sampler.data = CreateEntity();
+						animation_datas.Create(sampler.data) = sampler.backwards_compatibility_data;
+						sampler.backwards_compatibility_data.keyframe_times.clear();
+						sampler.backwards_compatibility_data.keyframe_data.clear();
 					}
-				}
-#endif
-
-				float left = animationdata->keyframe_times[keyLeft];
-
-				TransformComponent transform;
-
-				TransformComponent* target_transform = nullptr;
-				MeshComponent* target_mesh = nullptr;
-
-				if (channel.path == AnimationComponent::AnimationChannel::Path::WEIGHTS)
-				{
-					ObjectComponent* object = objects.GetComponent(channel.target);
-					assert(object != nullptr);
-					if (object == nullptr)
+					const AnimationDataComponent* animationdata = animation_datas.GetComponent(sampler.data);
+					if (animationdata == nullptr)
+					{
 						continue;
-					target_mesh = meshes.GetComponent(object->meshID);
-					assert(target_mesh != nullptr);
-					if (target_mesh == nullptr)
-						continue;
-					animation.morph_weights_temp.resize(target_mesh->targets.size());
-				}
-				else
-				{
-					target_transform = transforms.GetComponent(channel.target);
-					assert(target_transform != nullptr);
-					if (target_transform == nullptr)
-						continue;
-					transform = *target_transform;
-				}
+					}
 
-				switch (sampler.mode)
-				{
-				default:
-				case AnimationComponent::AnimationSampler::Mode::STEP:
-				{
-					// Nearest neighbor method (snap to left):
-					switch (channel.path)
+					int keyLeft = 0;
+					int keyRight = 0;
+
+					if (animationdata->keyframe_times.back() < animation.timer)
 					{
-					default:
-					case AnimationComponent::AnimationChannel::Path::TRANSLATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
-						transform.translation_local = ((const XMFLOAT3*)animationdata->keyframe_data.data())[keyLeft];
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::ROTATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4);
-						transform.rotation_local = ((const XMFLOAT4*)animationdata->keyframe_data.data())[keyLeft];
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::SCALE:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
-						transform.scale_local = ((const XMFLOAT3*)animationdata->keyframe_data.data())[keyLeft];
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::WEIGHTS:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size());
-						for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
-						{
-							animation.morph_weights_temp[j] = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
-						}
-					}
-					break;
-					}
-				}
-				break;
-				case AnimationComponent::AnimationSampler::Mode::LINEAR:
-				{
-					// Linear interpolation method:
-					float t;
-					if (keyLeft == keyRight)
-					{
-						t = 0;
+						// Rightmost keyframe is already outside animation, so just snap to last keyframe:
+						keyLeft = keyRight = (int)animationdata->keyframe_times.size() - 1;
 					}
 					else
 					{
-						// animation playing normally
-						float right = animationdata->keyframe_times[keyRight];
-						t = (animation.timer - left) / (right - left);
-					}
-
-					switch (channel.path)
-					{
-					default:
-					case AnimationComponent::AnimationChannel::Path::TRANSLATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
-						const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft]);
-						XMVECTOR vRight = XMLoadFloat3(&data[keyRight]);
-						XMVECTOR vAnim = XMVectorLerp(vLeft, vRight, t);
-						XMStoreFloat3(&transform.translation_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::ROTATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4);
-						const XMFLOAT4* data = (const XMFLOAT4*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat4(&data[keyLeft]);
-						XMVECTOR vRight = XMLoadFloat4(&data[keyRight]);
-						XMVECTOR vAnim = XMQuaternionSlerp(vLeft, vRight, t);
-						vAnim = XMQuaternionNormalize(vAnim);
-						XMStoreFloat4(&transform.rotation_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::SCALE:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
-						const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft]);
-						XMVECTOR vRight = XMLoadFloat3(&data[keyRight]);
-						XMVECTOR vAnim = XMVectorLerp(vLeft, vRight, t);
-						XMStoreFloat3(&transform.scale_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::WEIGHTS:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size());
-						for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
-						{
-							float vLeft = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
-							float vRight = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
-							float vAnim = wiMath::Lerp(vLeft, vRight, t);
-							animation.morph_weights_temp[j] = vAnim;
-						}
-					}
-					break;
-					}
-				}
-				break;
-				case AnimationComponent::AnimationSampler::Mode::CUBICSPLINE:
-				{
-					// Cubic Spline interpolation method:
-					float t;
-					if (keyLeft == keyRight)
-					{
-						t = 0;
-					}
-					else
-					{
-						float right = animationdata->keyframe_times[keyRight];
-						t = (animation.timer - left) / (right - left);
-					}
-
-					const float t2 = t * t;
-					const float t3 = t2 * t;
-
-					switch (channel.path)
-					{
-					default:
-					case AnimationComponent::AnimationChannel::Path::TRANSLATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3 * 3);
-						const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft * 3 + 1]);
-						XMVECTOR vLeftTanOut = dt * XMLoadFloat3(&data[keyLeft * 3 + 2]);
-						XMVECTOR vRightTanIn = dt * XMLoadFloat3(&data[keyRight * 3 + 0]);
-						XMVECTOR vRight = XMLoadFloat3(&data[keyRight * 3 + 1]);
-						XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
-						XMStoreFloat3(&transform.translation_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::ROTATION:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4 * 3);
-						const XMFLOAT4* data = (const XMFLOAT4*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat4(&data[keyLeft * 3 + 1]);
-						XMVECTOR vLeftTanOut = dt * XMLoadFloat4(&data[keyLeft * 3 + 2]);
-						XMVECTOR vRightTanIn = dt * XMLoadFloat4(&data[keyRight * 3 + 0]);
-						XMVECTOR vRight = XMLoadFloat4(&data[keyRight * 3 + 1]);
-						XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
-						vAnim = XMQuaternionNormalize(vAnim);
-						XMStoreFloat4(&transform.rotation_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::SCALE:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3 * 3);
-						const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
-						XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft * 3 + 1]);
-						XMVECTOR vLeftTanOut = dt * XMLoadFloat3(&data[keyLeft * 3 + 2]);
-						XMVECTOR vRightTanIn = dt * XMLoadFloat3(&data[keyRight * 3 + 0]);
-						XMVECTOR vRight = XMLoadFloat3(&data[keyRight * 3 + 1]);
-						XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
-						XMStoreFloat3(&transform.scale_local, vAnim);
-					}
-					break;
-					case AnimationComponent::AnimationChannel::Path::WEIGHTS:
-					{
-						assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size() * 3);
-						for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
-						{
-							float vLeft = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 1];
-							float vLeftTanOut = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 2];
-							float vRightTanIn = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 0];
-							float vRight = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 1];
-							float vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
-							animation.morph_weights_temp[j] = vAnim;
-						}
-					}
-					break;
-					}
-				}
-				break;
-				}
-
-				if (target_transform != nullptr)
-				{
-					target_transform->SetDirty();
+						float fAnimTimeEnd = animation.timer;
 
 #ifdef GGREDUCED
-					// additional functionality to impose other animation frames to the current frame
-					float fAmountCurveProportionalToSpeed = 0.0002f;
-					if (animation.speed < 0.5f) fAmountCurveProportionalToSpeed = 0.0001f;
-					if (animation.speed > 1.5f) fAmountCurveProportionalToSpeed = 0.0005f;
-					animation.amount = wiMath::Lerp(animation.amount, 1, fAmountCurveProportionalToSpeed);
-					float t = animation.amount;
-					// and adjust the rotation of frames for post-animation features such as head turning
-					if (channel.iUsePreFrame == 1)
-					{
-						// merge preframe with current frame
-						switch (channel.path)
+						if (animation.IsLooped())
 						{
-						case AnimationComponent::AnimationChannel::Path::TRANSLATION:
-						{
-							XMVECTOR preframeT = channel.vPreFrameTranslation;
-							XMVECTOR currentT = XMLoadFloat3(&transform.translation_local);
-							XMVECTOR resultT = XMVectorAdd(preframeT, currentT); //?hmm
-							XMStoreFloat3(&transform.translation_local, resultT);
-							break;
+							// this endures that in a loop mode, the last rightmost frame is locked, even when the animation.timer goes beyond to do the first frame interp
+							if (animation.timer > animation.end) fAnimTimeEnd = animation.end;
 						}
-						case AnimationComponent::AnimationChannel::Path::ROTATION:
-						{
-							XMVECTOR preframeR = channel.qPreFrameRotation;
-							XMVECTOR currentR = XMLoadFloat4(&transform.rotation_local);
-							XMVECTOR resultR = XMQuaternionMultiply(preframeR, currentR);
-							XMStoreFloat4(&transform.rotation_local, resultR);
-							break;
-						}
-						case AnimationComponent::AnimationChannel::Path::SCALE:
-						{
-							XMVECTOR preframeS = channel.vPreFrameScale;
-							XMVECTOR currentS = XMLoadFloat3(&transform.scale_local);
-							XMVECTOR resultS = XMVectorMultiply(preframeS, currentS);
-							XMStoreFloat3(&transform.scale_local, resultS);
-							break;
-						}
-						}
-					}
-					if (channel.iUsePreFrame == 2)
-					{
-						// entirely replace frame with preframe
-						switch (channel.path)
-						{
-						case AnimationComponent::AnimationChannel::Path::TRANSLATION:
-						{
-							XMVECTOR preframeT = channel.vPreFrameTranslation;
-							XMStoreFloat3(&transform.translation_local, preframeT);
-							break;
-						}
-						case AnimationComponent::AnimationChannel::Path::ROTATION:
-						{
-							XMVECTOR preframeR = channel.qPreFrameRotation;
-							XMStoreFloat4(&transform.rotation_local, preframeR);
-							break;
-						}
-						case AnimationComponent::AnimationChannel::Path::SCALE:
-						{
-							XMVECTOR preframeS = channel.vPreFrameScale;
-							XMStoreFloat3(&transform.scale_local, preframeS);
-							break;
-						}
-						}
+#endif
 
-						// use fSmoothAmount to introduce this frame smoothly into current frame
-						t = channel.fSmoothAmount;
+						// Search for the right keyframe (greater/equal to anim time):
+						while (animationdata->keyframe_times[keyRight++] < fAnimTimeEnd) {}
+						keyRight--;
+
+						// Left keyframe is just near right:
+						keyLeft = std::max(0, keyRight - 1);
 					}
-					if (channel.iUsePreFrame == 3)
+
+#ifdef GGREDUCED
+					// new dsadsa mode which can replace any frame with a different animation frame (used to wipe out Bip01 rotation when turning)
+					// but can be expanded to apply a second stream of animation so an object can play twi distinct animation tracks on different body parts
+					if (channel.iUsePreFrame >= 10000)
 					{
-						if (channel.path == AnimationComponent::AnimationChannel::Path::TRANSLATION)
-						{
-							float fRetainYPos = transform.translation_local.y;
-							XMVECTOR preframeT = channel.vPreFrameTranslation;
-							XMStoreFloat3(&transform.translation_local, preframeT);
-							transform.translation_local.y = fRetainYPos;
-						}
 						if (channel.path == AnimationComponent::AnimationChannel::Path::ROTATION)
 						{
-							XMVECTOR preframeT = channel.qPreFrameRotation;
-							XMStoreFloat4(&transform.rotation_local, preframeT);
+							int iNewAnimFrame = channel.iUsePreFrame - 10000;
+							keyLeft = iNewAnimFrame;
+							keyRight = iNewAnimFrame;
 						}
 					}
-#else
-					const float t = animation.amount;
 #endif
-					const XMVECTOR aS = XMLoadFloat3(&target_transform->scale_local);
-					const XMVECTOR aR = XMLoadFloat4(&target_transform->rotation_local);
-					const XMVECTOR aT = XMLoadFloat3(&target_transform->translation_local);
 
-					const XMVECTOR bS = XMLoadFloat3(&transform.scale_local);
-					const XMVECTOR bR = XMLoadFloat4(&transform.rotation_local);
-					const XMVECTOR bT = XMLoadFloat3(&transform.translation_local);
+					float left = animationdata->keyframe_times[keyLeft];
 
-					const XMVECTOR S = XMVectorLerp(aS, bS, t);
-					const XMVECTOR R = XMQuaternionSlerp(aR, bR, t);
-					const XMVECTOR T = XMVectorLerp(aT, bT, t);
+					TransformComponent transform;
 
-					XMStoreFloat3(&target_transform->scale_local, S);
-					XMStoreFloat4(&target_transform->rotation_local, R);
-					XMStoreFloat3(&target_transform->translation_local, T);
-				}
+					TransformComponent* target_transform = nullptr;
+					MeshComponent* target_mesh = nullptr;
 
-				if (target_mesh != nullptr)
-				{
-					const float t = animation.amount;
-
-					for (size_t j = 0; j < target_mesh->targets.size(); ++j)
+					if (channel.path == AnimationComponent::AnimationChannel::Path::WEIGHTS)
 					{
-						target_mesh->targets[j].weight = wiMath::Lerp(target_mesh->targets[j].weight, animation.morph_weights_temp[j], t);
+						ObjectComponent* object = objects.GetComponent(channel.target);
+						assert(object != nullptr);
+						if (object == nullptr)
+							continue;
+						target_mesh = meshes.GetComponent(object->meshID);
+						assert(target_mesh != nullptr);
+						if (target_mesh == nullptr)
+							continue;
+						animation.morph_weights_temp.resize(target_mesh->targets.size());
+					}
+					else
+					{
+						target_transform = transforms.GetComponent(channel.target);
+						assert(target_transform != nullptr);
+						if (target_transform == nullptr)
+							continue;
+						transform = *target_transform;
 					}
 
-					target_mesh->dirty_morph = true;
-				}
+					switch (sampler.mode)
+					{
+						default:
+						case AnimationComponent::AnimationSampler::Mode::STEP:
+						{
+							// Nearest neighbor method (snap to left):
+							switch (channel.path)
+							{
+								default:
+								case AnimationComponent::AnimationChannel::Path::TRANSLATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
+									transform.translation_local = ((const XMFLOAT3*)animationdata->keyframe_data.data())[keyLeft];
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::ROTATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4);
+									transform.rotation_local = ((const XMFLOAT4*)animationdata->keyframe_data.data())[keyLeft];
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::SCALE:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
+									transform.scale_local = ((const XMFLOAT3*)animationdata->keyframe_data.data())[keyLeft];
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::WEIGHTS:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size());
+									for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
+									{
+										animation.morph_weights_temp[j] = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
+									}
+								}
+								break;
+							}
+						}
+						break;
+						case AnimationComponent::AnimationSampler::Mode::LINEAR:
+						{
+							// Linear interpolation method:
+							float t;
+							if (keyLeft == keyRight)
+							{
+								t = 0;
+							}
+							else
+							{
+								// animation playing normally
+								float right = animationdata->keyframe_times[keyRight];
+								t = (animation.timer - left) / (right - left);
+							}
 
-			}
+							switch (channel.path)
+							{
+								default:
+								case AnimationComponent::AnimationChannel::Path::TRANSLATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
+									const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft]);
+									XMVECTOR vRight = XMLoadFloat3(&data[keyRight]);
+									XMVECTOR vAnim = XMVectorLerp(vLeft, vRight, t);
+									XMStoreFloat3(&transform.translation_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::ROTATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4);
+									const XMFLOAT4* data = (const XMFLOAT4*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat4(&data[keyLeft]);
+									XMVECTOR vRight = XMLoadFloat4(&data[keyRight]);
+									XMVECTOR vAnim = XMQuaternionSlerp(vLeft, vRight, t);
+									vAnim = XMQuaternionNormalize(vAnim);
+									XMStoreFloat4(&transform.rotation_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::SCALE:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3);
+									const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft]);
+									XMVECTOR vRight = XMLoadFloat3(&data[keyRight]);
+									XMVECTOR vAnim = XMVectorLerp(vLeft, vRight, t);
+									XMStoreFloat3(&transform.scale_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::WEIGHTS:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size());
+									for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
+									{
+										float vLeft = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
+										float vRight = animationdata->keyframe_data[keyLeft * animation.morph_weights_temp.size() + j];
+										float vAnim = wiMath::Lerp(vLeft, vRight, t);
+										animation.morph_weights_temp[j] = vAnim;
+									}
+								}
+								break;
+							}
+						}
+						break;
+						case AnimationComponent::AnimationSampler::Mode::CUBICSPLINE:
+						{
+							// Cubic Spline interpolation method:
+							float t;
+							if (keyLeft == keyRight)
+							{
+								t = 0;
+							}
+							else
+							{
+								float right = animationdata->keyframe_times[keyRight];
+								t = (animation.timer - left) / (right - left);
+							}
 
-			if (animation.IsPlaying())
-			{
-				animation.timer += dt * animation.speed;
-			}
+							const float t2 = t * t;
+							const float t3 = t2 * t;
+
+							switch (channel.path)
+							{
+								default:
+								case AnimationComponent::AnimationChannel::Path::TRANSLATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3 * 3);
+									const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft * 3 + 1]);
+									XMVECTOR vLeftTanOut = dt * XMLoadFloat3(&data[keyLeft * 3 + 2]);
+									XMVECTOR vRightTanIn = dt * XMLoadFloat3(&data[keyRight * 3 + 0]);
+									XMVECTOR vRight = XMLoadFloat3(&data[keyRight * 3 + 1]);
+									XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
+									XMStoreFloat3(&transform.translation_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::ROTATION:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 4 * 3);
+									const XMFLOAT4* data = (const XMFLOAT4*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat4(&data[keyLeft * 3 + 1]);
+									XMVECTOR vLeftTanOut = dt * XMLoadFloat4(&data[keyLeft * 3 + 2]);
+									XMVECTOR vRightTanIn = dt * XMLoadFloat4(&data[keyRight * 3 + 0]);
+									XMVECTOR vRight = XMLoadFloat4(&data[keyRight * 3 + 1]);
+									XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
+									vAnim = XMQuaternionNormalize(vAnim);
+									XMStoreFloat4(&transform.rotation_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::SCALE:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * 3 * 3);
+									const XMFLOAT3* data = (const XMFLOAT3*)animationdata->keyframe_data.data();
+									XMVECTOR vLeft = XMLoadFloat3(&data[keyLeft * 3 + 1]);
+									XMVECTOR vLeftTanOut = dt * XMLoadFloat3(&data[keyLeft * 3 + 2]);
+									XMVECTOR vRightTanIn = dt * XMLoadFloat3(&data[keyRight * 3 + 0]);
+									XMVECTOR vRight = XMLoadFloat3(&data[keyRight * 3 + 1]);
+									XMVECTOR vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
+									XMStoreFloat3(&transform.scale_local, vAnim);
+								}
+								break;
+								case AnimationComponent::AnimationChannel::Path::WEIGHTS:
+								{
+									assert(animationdata->keyframe_data.size() == animationdata->keyframe_times.size() * animation.morph_weights_temp.size() * 3);
+									for (size_t j = 0; j < animation.morph_weights_temp.size(); ++j)
+									{
+										float vLeft = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 1];
+										float vLeftTanOut = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 2];
+										float vRightTanIn = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 0];
+										float vRight = animationdata->keyframe_data[(keyLeft * animation.morph_weights_temp.size() + j) * 3 + 1];
+										float vAnim = (2 * t3 - 3 * t2 + 1) * vLeft + (t3 - 2 * t2 + t) * vLeftTanOut + (-2 * t3 + 3 * t2) * vRight + (t3 - t2) * vRightTanIn;
+										animation.morph_weights_temp[j] = vAnim;
+									}
+								}
+								break;
+							}
+						}
+						break;
+					}
+
+					if (target_transform != nullptr)
+					{
+						target_transform->SetDirty();
 
 #ifdef GGREDUCED
-			//stopped this for now, seemed it was the append anim chopping off a frame as gabys loops are great
-			// extend animation.end so that it accounts for the extra 'step to interpolate back to the start frame :)
-			//if (animation.IsLooped())
-			//{
-			//	float fRealEndOfAnimationTime = animation.end + fAnimLoopEndTimeStep;
-			//	if (animation.timer > fRealEndOfAnimationTime)
-			//	{
-			//		float fLengthOfAnimInTime = fRealEndOfAnimationTime - animation.start;
-			//		animation.timer -= fLengthOfAnimInTime;
-			//	}
-			//}
-			if (animation.IsLooped())
-			{
-				if (animation.timer > animation.end)
-				{
-					float fLengthOfAnimInTime = animation.end - animation.start;
-					animation.timer -= fLengthOfAnimInTime;
+						// additional functionality to impose other animation frames to the current frame
+						float fAmountCurveProportionalToSpeed = 0.0002f;
+						if (animation.speed < 0.5f) fAmountCurveProportionalToSpeed = 0.0001f;
+						if (animation.speed > 1.5f) fAmountCurveProportionalToSpeed = 0.0005f;
+						animation.amount = wiMath::Lerp(animation.amount, 1, fAmountCurveProportionalToSpeed);
+						float t = animation.amount;
+						// and adjust the rotation of frames for post-animation features such as head turning
+						if (channel.iUsePreFrame == 1)
+						{
+							// merge preframe with current frame
+							switch (channel.path)
+							{
+								case AnimationComponent::AnimationChannel::Path::TRANSLATION:
+								{
+									XMVECTOR preframeT = channel.vPreFrameTranslation;
+									XMVECTOR currentT = XMLoadFloat3(&transform.translation_local);
+									XMVECTOR resultT = XMVectorAdd(preframeT, currentT); //?hmm
+									XMStoreFloat3(&transform.translation_local, resultT);
+									break;
+								}
+								case AnimationComponent::AnimationChannel::Path::ROTATION:
+								{
+									XMVECTOR preframeR = channel.qPreFrameRotation;
+									XMVECTOR currentR = XMLoadFloat4(&transform.rotation_local);
+									XMVECTOR resultR = XMQuaternionMultiply(preframeR, currentR);
+									XMStoreFloat4(&transform.rotation_local, resultR);
+									break;
+								}
+								case AnimationComponent::AnimationChannel::Path::SCALE:
+								{
+									XMVECTOR preframeS = channel.vPreFrameScale;
+									XMVECTOR currentS = XMLoadFloat3(&transform.scale_local);
+									XMVECTOR resultS = XMVectorMultiply(preframeS, currentS);
+									XMStoreFloat3(&transform.scale_local, resultS);
+									break;
+								}
+							}
+						}
+						if (channel.iUsePreFrame == 2)
+						{
+							// entirely replace frame with preframe
+							switch (channel.path)
+							{
+								case AnimationComponent::AnimationChannel::Path::TRANSLATION:
+								{
+									XMVECTOR preframeT = channel.vPreFrameTranslation;
+									XMStoreFloat3(&transform.translation_local, preframeT);
+									break;
+								}
+								case AnimationComponent::AnimationChannel::Path::ROTATION:
+								{
+									XMVECTOR preframeR = channel.qPreFrameRotation;
+									XMStoreFloat4(&transform.rotation_local, preframeR);
+									break;
+								}
+								case AnimationComponent::AnimationChannel::Path::SCALE:
+								{
+									XMVECTOR preframeS = channel.vPreFrameScale;
+									XMStoreFloat3(&transform.scale_local, preframeS);
+									break;
+								}
+							}
+
+							// use fSmoothAmount to introduce this frame smoothly into current frame
+							t = channel.fSmoothAmount;
+						}
+						if (channel.iUsePreFrame == 3)
+						{
+							if (channel.path == AnimationComponent::AnimationChannel::Path::TRANSLATION)
+							{
+								float fRetainYPos = transform.translation_local.y;
+								XMVECTOR preframeT = channel.vPreFrameTranslation;
+								XMStoreFloat3(&transform.translation_local, preframeT);
+								transform.translation_local.y = fRetainYPos;
+							}
+							if (channel.path == AnimationComponent::AnimationChannel::Path::ROTATION)
+							{
+								XMVECTOR preframeT = channel.qPreFrameRotation;
+								XMStoreFloat4(&transform.rotation_local, preframeT);
+							}
+						}
+#else
+						const float t = animation.amount;
+#endif
+						const XMVECTOR aS = XMLoadFloat3(&target_transform->scale_local);
+						const XMVECTOR aR = XMLoadFloat4(&target_transform->rotation_local);
+						const XMVECTOR aT = XMLoadFloat3(&target_transform->translation_local);
+
+						const XMVECTOR bS = XMLoadFloat3(&transform.scale_local);
+						const XMVECTOR bR = XMLoadFloat4(&transform.rotation_local);
+						const XMVECTOR bT = XMLoadFloat3(&transform.translation_local);
+
+						const XMVECTOR S = XMVectorLerp(aS, bS, t);
+						const XMVECTOR R = XMQuaternionSlerp(aR, bR, t);
+						const XMVECTOR T = XMVectorLerp(aT, bT, t);
+
+						XMStoreFloat3(&target_transform->scale_local, S);
+						XMStoreFloat4(&target_transform->rotation_local, R);
+						XMStoreFloat3(&target_transform->translation_local, T);
+					}
+
+					if (target_mesh != nullptr)
+					{
+						const float t = animation.amount;
+
+						for (size_t j = 0; j < target_mesh->targets.size(); ++j)
+						{
+							target_mesh->targets[j].weight = wiMath::Lerp(target_mesh->targets[j].weight, animation.morph_weights_temp[j], t);
+						}
+
+						target_mesh->dirty_morph = true;
+					}
+
 				}
+
+				if (animation.IsPlaying())
+				{
+					animation.timer += dt * animation.speed;
+				}
+
+#ifdef GGREDUCED
+				//stopped this for now, seemed it was the append anim chopping off a frame as gabys loops are great
+				// extend animation.end so that it accounts for the extra 'step to interpolate back to the start frame :)
+				//if (animation.IsLooped())
+				//{
+				//	float fRealEndOfAnimationTime = animation.end + fAnimLoopEndTimeStep;
+				//	if (animation.timer > fRealEndOfAnimationTime)
+				//	{
+				//		float fLengthOfAnimInTime = fRealEndOfAnimationTime - animation.start;
+				//		animation.timer -= fLengthOfAnimInTime;
+				//	}
+				//}
+				if (animation.IsLooped())
+				{
+					if (animation.timer > animation.end)
+					{
+						float fLengthOfAnimInTime = animation.end - animation.start;
+						animation.timer -= fLengthOfAnimInTime;
+					}
+				}
+#else
+				if (animation.IsLooped() && animation.timer > animation.end)
+				{
+					animation.timer = animation.start;
+				}
+#endif
 			}
-			#else
-			if (animation.IsLooped() && animation.timer > animation.end)
-			{
-				animation.timer = animation.start;
-			}
-			#endif
+#ifdef GGREDUCED
+			// end extra loop (see above)
 		}
+#endif
 	}
 	void Scene::RunTransformUpdateSystem(wiJobSystem::context& ctx)
 	{

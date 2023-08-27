@@ -1055,8 +1055,12 @@ namespace wiScene
 		float amount = 1;	// blend amount
 #ifdef GGREDUCED
 		float speed = 50;
+		uint32_t primaryanimid = 0;
+		uint32_t useprimaryanimtimer = 0;
 #else
 		float speed = 1;
+		uint32_t primaryanimid = 0;
+		uint32_t useprimaryanimtimer = 0;
 #endif
 
 		struct AnimationChannel
@@ -1130,6 +1134,7 @@ namespace wiScene
 		inline void SetSpeed(float fSpeed = 1.0f) { speed = fSpeed; }
 		bool updateonce = false;
 		inline void SetUpdateOnce() { updateonce = true; }
+		inline void UsePrimaryAnimTimer(uint32_t pAnimComponentPtr = 0, uint32_t iPrimaryanimid = 0) { useprimaryanimtimer = pAnimComponentPtr; primaryanimid = iPrimaryanimid; }
 #endif
 
 		void Serialize(wiArchive& archive, wiECS::EntitySerializer& seri);
