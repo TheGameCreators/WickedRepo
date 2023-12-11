@@ -7,6 +7,17 @@
 #include <unordered_map>
 #include <sstream>
 
+//#ifdef GGREDUCED
+//bool g_bNoTerrainRender = false;
+//float fWickedCallShadowFarPlane = 500000;
+//float fWickedMaxCenterTest = 0.0;
+//bool g_bDelayedShadows = true;
+extern "C" void gpup_draw_bydistance(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd, float fDistanceFromCamera)
+{
+	// nout
+}
+//#endif
+
 std::mutex locker;
 std::vector<std::string> shaders[wiGraphics::SHADERSTAGE_COUNT];
 std::unordered_map<std::string, wiGraphics::SHADERMODEL> minshadermodels;
@@ -287,6 +298,7 @@ int main(int argc, char* argv[])
 		"oceanSurfaceSimplePS.hlsl"						,
 		"objectPS_transparent_pom.hlsl"					,
 		"objectPS_water.hlsl"							,
+		"objectPS_weapon.hlsl"							,
 		"objectPS_voxelizer.hlsl"						,
 		"objectPS_voxelizer_terrain.hlsl"				,
 		"objectPS_transparent.hlsl"						,

@@ -437,6 +437,15 @@ inline float3 shadowCube(in ShaderEntity light, in float3 L, in float3 Lunnormal
 
 inline void DirectionalLight(in ShaderEntity light, in Surface surface, inout Lighting lighting, in float shadow_mask = 1)
 {
+#ifdef WEAPON_SHADOW
+	// experiment to pull surface positions closer to camera
+	// and thus ensure geometry not STUCK INSIDE a wall that would
+	// cast a shadow on it
+	float3 diffxytz = surface.P.xyz - g_xCamera_CamPos;
+	diffxytz /= 3.0f;
+	surface.P.xyz = g_xCamera_CamPos + diffxytz;
+#endif
+	
 	float3 L = light.GetDirection();
 
 	SurfaceToLight surfaceToLight;

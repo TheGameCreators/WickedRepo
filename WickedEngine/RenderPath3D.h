@@ -342,12 +342,13 @@ public:
 
 	virtual void setMSAASampleCount(uint32_t value) { msaaSampleCount = value; }
 
+#ifdef GGREDUCED
 	void Set3DResolution( float width, float height );
 	float GetWidth3D() const { return width3D; }
 	float GetHeight3D() const { return height3D; }
-
 	void SetFSRScale( float scale );
 	float GetFSRScale() const { return fsrUpScale; }
+#endif
 
 	void PreUpdate() override;
 	void StorePreviousLeft() override;

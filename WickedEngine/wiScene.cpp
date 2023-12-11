@@ -371,7 +371,7 @@ namespace wiScene
 		}
 		return RENDERTYPE_TRANSPARENT;
 	}
-	void MaterialComponent::CreateRenderData()
+	void MaterialComponent::CreateRenderData() 
 	{
 		for (auto& x : textures)
 		{

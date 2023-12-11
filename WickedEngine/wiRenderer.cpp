@@ -89,7 +89,7 @@ namespace GPUParticles
 using namespace std;
 using namespace wiGraphics;
 using namespace wiScene;
-using namespace wiECS;
+using namespace wiECS; 
 using namespace wiAllocators;
 
 namespace wiRenderer
@@ -845,6 +845,9 @@ SHADERTYPE GetPSTYPE(RENDERPASS renderPass, bool alphatest, bool transparent, Ma
 		case wiScene::MaterialComponent::SHADERTYPE_WATER:
 			realPS = transparent ? PSTYPE_OBJECT_WATER : SHADERTYPE_COUNT;
 			break;
+		case wiScene::MaterialComponent::SHADERTYPE_WEAPON:
+			realPS = PSTYPE_OBJECT_WEAPON;
+			break;
 		case wiScene::MaterialComponent::SHADERTYPE_CARTOON:
 			realPS = transparent ? PSTYPE_OBJECT_TRANSPARENT_CARTOON : PSTYPE_OBJECT_CARTOON;
 			break;
@@ -1225,6 +1228,7 @@ void LoadShaders()
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_UNLIT], "objectPS_unlit.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_TRANSPARENT_UNLIT], "objectPS_transparent_unlit.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_WATER], "objectPS_water.cso"); });
+	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_WEAPON], "objectPS_weapon.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_TERRAIN], "objectPS_terrain.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_IMPOSTOR], "impostorPS.cso"); });
 
@@ -2589,7 +2593,7 @@ void SetUpStates()
 	bd.IndependentBlendEnable = false;
 	blendStates[BSTYPE_MULTIPLY] = bd;
 
-	bd.RenderTarget[0].SrcBlend = BLEND_ZERO;
+	bd.RenderTarget[0].SrcBlend = BLEND_ZERO; 
 	bd.RenderTarget[0].DestBlend = BLEND_SRC_COLOR;
 	bd.RenderTarget[0].BlendOp = BLEND_OP_ADD;
 	bd.RenderTarget[0].SrcBlendAlpha = BLEND_ONE;
@@ -2724,12 +2728,25 @@ inline void CreateDirLightShadowCams(const LightComponent& light, CameraComponen
 	const float invFar = 1.0f / referenceFarPlane;
 	const float splits[CASCADE_COUNT + 1] = {
 #ifdef GGREDUCED
-	    referenceSplitClamp * 0.0f,    // near plane
-		referenceSplitClamp * 200.0f * invFar, // near-mid1 split
-		referenceSplitClamp * 1250.0f * invFar, // mid1-mid2 split
-		referenceSplitClamp * 7500.0f * invFar,  // mid2-mid3 split
-		referenceSplitClamp * 50000.0f * invFar,    // mid3-far split
-		referenceSplitClamp * 1.0f,	   // far plane
+		//gaps through walls!
+	    //referenceSplitClamp * 0.0f,    // near plane
+		//referenceSplitClamp * 200.0f * invFar, // near-mid1 split
+		//referenceSplitClamp * 1250.0f * invFar, // mid1-mid2 split
+		//referenceSplitClamp * 7500.0f * invFar,  // mid2-mid3 split
+		//referenceSplitClamp * 50000.0f * invFar,    // mid3-far split
+		//referenceSplitClamp * 1.0f,	   // far plane
+		//referenceSplitClamp * 0.0f,    // near plane
+		//referenceSplitClamp * 10.0f * invFar, // near-mid1 split
+		//referenceSplitClamp * 15.0f * invFar, // mid1-mid2 split
+		//referenceSplitClamp * 7500 * invFar,  // mid2-mid3 split
+		//referenceSplitClamp * 50000 * invFar,    // mid3-far split
+		//referenceSplitClamp * 500000,	   // far plane
+		referenceSplitClamp * 0.0f,    // near plane
+		referenceSplitClamp * 500.0f * invFar,		// near-mid1 split
+		referenceSplitClamp * 1000.0f * invFar,		// mid1-mid2 split
+		referenceSplitClamp * 7500 * invFar,		// mid2-mid3 split
+		referenceSplitClamp * 50000 * invFar,		// mid3-far split
+		referenceSplitClamp * 1,					// far plane
 #else
 	    referenceSplitClamp * 0.0f,	  // near plane
 		referenceSplitClamp * 0.01f,  // near-mid split
@@ -7523,8 +7540,8 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 	if (!vis.scene->envmapArray.IsValid())
 		return;
 
-	device->EventBegin("EnvironmentProbe Refresh", cmd);
-	auto range = wiProfiler::BeginRangeGPU("Environment Probe Refresh", cmd);
+	//device->EventBegin("EnvironmentProbe Refresh", cmd);
+	//auto range = wiProfiler::BeginRangeGPU("Environment Probe Refresh", cmd);
 
 	BindCommonResources(cmd);
 
@@ -7608,7 +7625,9 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 				float sqrDist = diffX*diffX + diffY*diffY + diffZ*diffZ;
 				float apparentSize = largestArea / sqrDist;
 
-				if ( apparentSize > 0.03f && (aabb.layerMask & vis.layerMask) && (aabb.layerMask & probe_aabb.layerMask) && culler.intersects(aabb))
+				//#ifdef GGREDUCED
+				float fCullFromEnvMapObjectsAtDistanceThreshold = 0.003f;// 0.03f; this produced bad env maps when generated FAR from player camera!
+				if ( apparentSize > fCullFromEnvMapObjectsAtDistanceThreshold && (aabb.layerMask & vis.layerMask) && (aabb.layerMask & probe_aabb.layerMask) && culler.intersects(aabb))
 				{
 					const ObjectComponent& object = vis.scene->objects[i];
 					if (object.IsRenderable())
@@ -7750,7 +7769,7 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 	}
 	}
 
-	wiProfiler::EndRange(range);
+	//wiProfiler::EndRange(range);
 	device->EventEnd(cmd); // EnvironmentProbe Refresh
 }
 

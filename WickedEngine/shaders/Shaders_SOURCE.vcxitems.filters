@@ -1004,6 +1004,9 @@
     <FxCompile Include="$(MSBuildThisFileDirectory)snowCS.hlsl">
       <Filter>CS</Filter>
     </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)objectPS_weapon.hlsl">
+      <Filter>PS</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)ConstantBufferMapping.h">

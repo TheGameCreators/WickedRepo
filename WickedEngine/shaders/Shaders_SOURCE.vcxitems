@@ -965,6 +965,7 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">Pixel</ShaderType>
       <ShaderType>Pixel</ShaderType>
     </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)objectPS_weapon.hlsl" />
     <FxCompile Include="$(MSBuildThisFileDirectory)objectVS_prepass_alphatest.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
