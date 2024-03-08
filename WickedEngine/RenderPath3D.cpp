@@ -9,6 +9,9 @@
 #ifdef GGREDUCED
 bool ImGuiHook_GetScissorArea(float* pX1, float* pY1, float* pX2, float* pY2);
 extern bool g_bNoTerrainRender;
+//const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
+extern float maxApparentSize; // = 0.000002f;
+
 #define REMOVE_WICKED_PARTICLE
 #define REMOVE_WATER_RIPPLE
 #define REMOVE_TEMPORAL_AA
@@ -19,7 +22,9 @@ extern bool g_bNoTerrainRender;
 using namespace wiGraphics;
 
 #ifdef GGREDUCED
+
 namespace GGTerrain {
+
 	extern "C" void GGTerrain_Draw( const Frustum* frustum, int mode, wiGraphics::CommandList cmd );
 	extern "C" void __GGTerrain_Draw_EMPTY( const Frustum* frustum, int mode, wiGraphics::CommandList cmd ) {}
 	// use GGTerrain_Draw() if it is defined, otherwise use __GGTerrain_Draw_EMPTY()
@@ -651,9 +656,6 @@ void RenderPath3D::Update(float dt)
 			scene->SetAccelerationStructureUpdateRequested(true);
 		}
 	}
-
-	//const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
-	const float maxApparentSize = 0.000002f; 
 
 	// Frustum culling for main camera:
 	visibility_main.layerMask = getLayerMask();

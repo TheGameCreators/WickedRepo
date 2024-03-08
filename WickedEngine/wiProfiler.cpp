@@ -28,6 +28,8 @@ namespace wiProfiler
 	int iPolygonsDrawn = 0, iOldPolygonsDrawn = 0;
 	int iPolygonsDrawnShadows = 0, iOldPolygonsDrawnShadows = 0;
 	int iPolygonsDrawnTransparent = 0, iOldPolygonsDrawnTransparent = 0;
+
+	int iFrustumculled = 0;
 #endif
 	std::mutex lock;
 	range_id cpu_frame;
@@ -262,6 +264,10 @@ namespace wiProfiler
 	int GetPolygons(void) { return iOldPolygonsDrawn; }
 	int GetPolygonsShadows(void) { return iOldPolygonsDrawnShadows; }
 	int GetPolygonsTransparent(void) { return iOldPolygonsDrawnTransparent; }
+
+	int GetFrustumCulled(void) { return(iFrustumculled); }
+	void SetFrustumCulled(int iFrustum) { iFrustumculled = iFrustum; }
+
 
 	//We need the data returned here.
 	std::string GetProfilerData(void)

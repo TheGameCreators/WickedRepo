@@ -18,6 +18,18 @@
 //PE: https://github.com/turanszkij/WickedEngine/commit/4d736898771269baf908b8dbe2ca083505cfef01
 //PE: multithreaded hierarchy update system
 #ifdef GGREDUCED
+struct TerrainChunkOcclusion
+{
+	AABB aabb = {};
+	bool bChunkVisible = false;
+	uint32_t history = 1;
+	uint32_t writeQuery = 0;
+};
+namespace GGTerrain {
+	extern "C" TerrainChunkOcclusion* GetChunkVisibleMem(int lod, int idx);
+	extern "C" uint32_t GetChunkLodStart(void);
+
+}
 #define MTHREAD_HIERARCHY
 #endif
 
@@ -1545,7 +1557,7 @@ namespace wiScene
 			{
 				GPUQueryHeapDesc desc;
 				desc.type = GPU_QUERY_TYPE_OCCLUSION_BINARY;
-				desc.queryCount = 2048;
+				desc.queryCount = 4096;
 				for (int i = 0; i < arraysize(queryHeap); ++i)
 				{
 					bool success = wiRenderer::GetDevice()->CreateQueryHeap(&desc, &queryHeap[i]);
@@ -1571,6 +1583,27 @@ namespace wiScene
 					queryResults.data()
 				);
 			}
+#ifdef GGREDUCED
+			TerrainChunkOcclusion* pTCO;
+			uint32_t lodstart = GGTerrain::GetChunkLodStart();
+
+			for (int lod = lodstart; lod < 9; lod++)
+			{
+				for (int i = 0; i < 64; i++)
+				{
+					pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
+					if (pTCO && pTCO->bChunkVisible)
+					{
+						//Update last status.
+						pTCO->history <<= 1;
+						if (pTCO->writeQuery > 0)
+							pTCO->history |= queryResults[pTCO->writeQuery];
+						else
+							pTCO->history = 1;
+					}
+				}
+			}
+#endif
 		}
 
 		wiJobSystem::context ctx;
