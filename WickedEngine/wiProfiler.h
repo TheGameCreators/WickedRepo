@@ -43,6 +43,9 @@ namespace wiProfiler
 	int GetPolygonsShadows(void);
 	int GetPolygonsTransparent(void);
 
+	int GetFrustumCulled(void);
+	void SetFrustumCulled(int iFrustum);
+
 #endif
 
 	// Enable/disable profiling

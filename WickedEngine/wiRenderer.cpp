@@ -56,8 +56,24 @@ extern bool g_bDelayedShadows;
 #endif
 
 #ifdef GGREDUCED
+struct TerrainChunkOcclusion
+{
+	AABB aabb = {};
+	bool bChunkVisible = false;
+	uint32_t history = 1;
+	uint32_t writeQuery = 0;
+} ;
+
 namespace GGTerrain
 {
+	extern "C" TerrainChunkOcclusion* GetChunkVisibleMem(int lod, int idx);
+	extern "C" TerrainChunkOcclusion* __GetChunkVisibleMem_EMPTY(int lod, int idx) { return 0; }
+	#pragma comment(linker, "/alternatename:GetChunkVisibleMem=__GetChunkVisibleMem_EMPTY")
+
+	extern "C" uint32_t GetChunkLodStart(void);
+	extern "C" uint32_t __GetChunkLodStart_EMPTY(void) { return 9; };
+	#pragma comment(linker, "/alternatename:GetChunkLodStart=__GetChunkLodStart_EMPTY")
+
 	extern "C" void GGTerrain_Draw_ShadowMap( const Frustum* frustum, int cascade, wiGraphics::CommandList cmd );
 	extern "C" void __GGTerrain_Draw_ShadowMap_EMPTY( const Frustum* frustum, int cascade, wiGraphics::CommandList cmd ) {}
 	// use GGTerrain_Draw_ShadowMap() if it is defined, otherwise use __GGTerrain_Draw_ShadowMap_EMPTY()
@@ -3833,6 +3849,9 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 	vis.visibleObjects.resize((size_t)vis.object_counter.load());
 	vis.visibleDecals.resize((size_t)vis.decal_counter.load());
 
+	if(vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING)
+		wiProfiler::SetFrustumCulled(vis.scene->aabb_objects.GetCount() - vis.visibleObjects.size());
+
 	if (!g_bNoTerrainRender)
 	{
 		if ((vis.flags & Visibility::ALLOW_REQUEST_REFLECTION) && vis.scene->weather.IsOceanEnabled())
@@ -3859,25 +3878,18 @@ void UpdatePerFrameData(
 		renderFrameAllocators[i].reset();
 	}
 
-	wiJobSystem::context ctx;
-
 	// Occlusion query allocation:
 	if (GetOcclusionCullingEnabled() && !GetFreezeCullingCameraEnabled())
 	{
-		wiJobSystem::Dispatch(ctx, (uint32_t)vis.visibleObjects.size(), 64, [&](wiJobArgs args) {
-
-			ObjectComponent& object = scene.objects[args.jobIndex];
+		//PE: Occlusion Culling.
+		for (int i = 0; i < vis.visibleObjects.size(); i++)
+		{
+			int idx = vis.visibleObjects[i];
+			ObjectComponent& object = scene.objects[idx];
 			if (!object.IsRenderable())
-			{
-				return;
-			}
+				continue;
 
-			AABB aabb = scene.aabb_objects[args.jobIndex];
-
-			// expand the box slightly so it makes the object visible before it comes into view
-			const float expansion = 0.0f;
-			aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
-			aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
+			AABB aabb = scene.aabb_objects[idx];
 
 			if (aabb.intersects(vis.camera->Eye))
 			{
@@ -3891,8 +3903,35 @@ void UpdatePerFrameData(
 				{
 					object.occlusionQueries[scene.queryheap_idx] = writeQuery;
 				}
+				else
+					object.occlusionQueries[scene.queryheap_idx] = -1;
 			}
-		});
+		}
+#ifdef GGREDUCED
+		TerrainChunkOcclusion* pTCO;
+		uint32_t lodstart = GGTerrain::GetChunkLodStart();
+		for (int lod = lodstart; lod < 9; lod++)
+		{
+			for (int i = 0; i < 64; i++)
+			{
+				pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
+				if (pTCO && pTCO->bChunkVisible)
+				{
+					AABB aabb = pTCO->aabb;
+
+					const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
+					if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+					{
+						pTCO->writeQuery = writeQuery;
+					}
+					else
+						pTCO->writeQuery = 0;
+				}
+			}
+		}
+
+#endif
+
 	}
 
 	// Update Voxelization parameters:
@@ -3912,8 +3951,6 @@ void UpdatePerFrameData(
 		voxelSceneData.center = center;
 		voxelSceneData.extents = XMFLOAT3(voxelSceneData.res * voxelSceneData.voxelsize, voxelSceneData.res * voxelSceneData.voxelsize, voxelSceneData.res * voxelSceneData.voxelsize);
 	}
-
-	wiJobSystem::Wait(ctx);
 
 	if (!device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_RAYTRACING_PIPELINE) && !device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_RAYTRACING_INLINE) && scene.IsAccelerationStructureUpdateRequested())
 	{
@@ -4982,6 +5019,7 @@ void UpdateRaytracingAccelerationStructures(const Scene& scene, CommandList cmd)
 
 	scene.acceleration_structure_update_requested = false;
 }
+
 void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visibility& vis, CommandList cmd)
 {
 	if (!GetOcclusionCullingEnabled() || GetFreezeCullingCameraEnabled())
@@ -5003,6 +5041,8 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 
 		XMMATRIX VP = camera_previous.GetViewProjection();
 
+		static uint32_t iOCFrames = 0;
+		iOCFrames++;
 		for (uint32_t instanceIndex : vis.visibleObjects)
 		{
 			const ObjectComponent& object = vis.scene->objects[instanceIndex];
@@ -5010,16 +5050,23 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 			{
 				continue;
 			}
+			if (!object.IsOccluded())
+			{
+				//PE: visible object only get cheked each 3 frames.
+				if( (instanceIndex + iOCFrames) % 3 != 0)
+					continue;
+			}
 
 			int queryIndex = object.occlusionQueries[query_write];
 			if (queryIndex >= 0)
 			{
 				AABB aabb = vis.scene->aabb_objects[instanceIndex];
 
+				//PE: expand the box not needed after moving it out of the job system.
 				// expand the box slightly so it makes the object visible before it comes into view
-				const float expansion = 0.0f;
-				aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
-				aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
+				//const float expansion = 0.0f;
+				//aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
+				//aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
 
 				const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
 
@@ -5041,7 +5088,44 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 				device->QueryEnd(&queryHeap, queryIndex, cmd);
 			}
 		}
+#ifdef GGREDUCED
+		TerrainChunkOcclusion* pTCO;
+		uint32_t lodstart = GGTerrain::GetChunkLodStart();
+		for (int lod = lodstart; lod < 9; lod++)
+		{
+			for (int i = 0; i < 64; i++)
+			{
+				pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
+				if (pTCO && pTCO->bChunkVisible)
+				{
+					if (pTCO->writeQuery > 0)
+					{
+						int qIndex = pTCO->writeQuery;
+						AABB aabb = pTCO->aabb;
 
+						const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+
+						if (bindless)
+						{
+							device->PushConstants(&transform, sizeof(transform), cmd);
+						}
+						else
+						{
+							MiscCB cb;
+							XMStoreFloat4x4(&cb.g_xTransform, transform);
+							device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
+							device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+						}
+
+						// render bounding box to later read the occlusion status
+						device->QueryBegin(&queryHeap, qIndex, cmd);
+						device->Draw(14, 0, cmd);
+						device->QueryEnd(&queryHeap, qIndex, cmd);
+					}
+				}
+			}
+		}
+#endif
 		device->QueryResolve(
 			&queryHeap,
 			0,
