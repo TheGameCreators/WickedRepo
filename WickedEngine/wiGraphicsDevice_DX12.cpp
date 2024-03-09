@@ -6324,6 +6324,10 @@ using namespace DX12_Internal;
 	void GraphicsDevice_DX12::CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd)
 	{
 	}
+	char* GraphicsDevice_DX12::GetGraphicsCardName(void)
+	{
+		return NULL;
+	}
 #endif
 	void GraphicsDevice_DX12::UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize)
 	{

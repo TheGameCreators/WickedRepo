@@ -226,8 +226,7 @@ void MainComponent::Run()
 
 void MainComponent::Update(float dt)
 {
-	auto range = wiProfiler::BeginRangeCPU("Update");
-
+	auto range1 = wiProfiler::BeginRangeCPU("Update");
 #ifndef GGREDUCED
 	wiLua::SetDeltaTime(double(dt));
 	wiLua::Update();
@@ -238,8 +237,7 @@ void MainComponent::Update(float dt)
 		GetActivePath()->Update(dt);
 		GetActivePath()->PostUpdate();
 	}
-
-	wiProfiler::EndRange(range); // Update
+	wiProfiler::EndRange(range1);
 }
 
 void MainComponent::FixedUpdate()
