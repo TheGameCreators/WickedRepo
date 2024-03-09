@@ -25,6 +25,12 @@
 #include <sstream>
 #include <algorithm>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
+
 using namespace wiGraphics;
 
 void MainComponent::Initialize()
@@ -205,6 +211,12 @@ void MainComponent::Run()
 		Compose(cmd);
 		wiRenderer::GetDevice()->RenderPassEnd(cmd);
 		wiProfiler::EndFrame(cmd);
+
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT("wiRenderer::SubmitCommandLists");
+#endif
+#endif
 		wiRenderer::GetDevice()->SubmitCommandLists();
 	}
 	#ifdef GGREDUCED

@@ -10,6 +10,12 @@
 #include <sstream>
 #include <algorithm>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
+
 // These will let the driver select the dedicated GPU in favour of the integrated one:
 extern "C" {
 	_declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
@@ -2791,11 +2797,21 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 	{
 		HRESULT hr = deviceContexts[cmd]->FinishCommandList(false, &commandLists[cmd]);
 		assert(SUCCEEDED(hr));
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT("ExecuteCommandList");
+#endif
+#endif
 		immediateContext->ExecuteCommandList(commandLists[cmd].Get(), false);
 		commandLists[cmd].Reset();
 
 		for (auto& swapchain : swapchains[cmd])
 		{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+			OPTICK_EVENT("Present");
+#endif
+#endif
 #ifdef GGREDUCED
 			//PE: We need to disable present when grabbing from the backbuffer.
 			extern bool g_bNoSwapchainPresent;

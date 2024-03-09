@@ -14,6 +14,11 @@
 #include <functional>
 #include <unordered_map>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
 
 //PE: https://github.com/turanszkij/WickedEngine/commit/4d736898771269baf908b8dbe2ca083505cfef01
 //PE: multithreaded hierarchy update system
@@ -1593,9 +1598,7 @@ namespace wiScene
 #endif
 
 		RunSpringUpdateSystem(ctx);
-
 		RunInverseKinematicsUpdateSystem(ctx);
-
 		RunArmatureUpdateSystem(ctx);
 
 #ifndef MTHREAD_HIERARCHY
@@ -1605,7 +1608,6 @@ namespace wiScene
 #endif
 
 		RunImpostorUpdateSystem(ctx);
-
 		RunWeatherUpdateSystem(ctx);
 
 #ifndef GGREDUCED
@@ -1615,19 +1617,12 @@ namespace wiScene
 		wiJobSystem::Wait(ctx); // dependencies
 
 		RunObjectUpdateSystem(ctx);
-
 		RunCameraUpdateSystem(ctx);
-
 		RunDecalUpdateSystem(ctx);
-
 		RunProbeUpdateSystem(ctx);
-
 		RunForceUpdateSystem(ctx);
-
 		RunLightUpdateSystem(ctx);
-
 		RunParticleUpdateSystem(ctx);
-
 		RunSoundUpdateSystem(ctx);
 
 		wiJobSystem::Wait(ctx); // dependencies
@@ -2284,6 +2279,11 @@ namespace wiScene
 
 	void Scene::RunPreviousFrameTransformUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)prev_transforms.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			PreviousFrameTransformComponent& prev_transform = prev_transforms[args.jobIndex];
@@ -2295,6 +2295,11 @@ namespace wiScene
 	}
 	void Scene::RunAnimationUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 #ifdef GGREDUCED
 		// extra loop to process primary animations, before allowing secondary to 'steal' the timer value to sync child animations to primary ones
 		for (int handleprimaryandsecondary = 0; handleprimaryandsecondary < 2; handleprimaryandsecondary++)
@@ -2765,6 +2770,11 @@ namespace wiScene
 	}
 	void Scene::RunTransformUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)transforms.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			TransformComponent& transform = transforms[args.jobIndex];
@@ -2774,6 +2784,11 @@ namespace wiScene
 #ifdef MTHREAD_HIERARCHY
 	void Scene::RunHierarchyUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)hierarchy.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			HierarchyComponent& hier = hierarchy[args.jobIndex];
@@ -2860,6 +2875,11 @@ namespace wiScene
 
 	void Scene::RunSpringUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		static float time = 0;
 		time += dt;
 		const XMVECTOR windDir = XMLoadFloat3(&weather.windDirection);
@@ -2948,6 +2968,11 @@ namespace wiScene
 	}
 	void Scene::RunInverseKinematicsUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		bool recompute_hierarchy = false;
 		for (size_t i = 0; i < inverse_kinematics.GetCount(); ++i)
 		{
@@ -3047,6 +3072,11 @@ namespace wiScene
 	}
 	void Scene::RunArmatureUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)armatures.GetCount(), 1, [&](wiJobArgs args) {
 
 			ArmatureComponent& armature = armatures[args.jobIndex];
@@ -3102,6 +3132,11 @@ namespace wiScene
 	}
 	void Scene::RunMeshUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)meshes.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			Entity entity = meshes.GetEntity(args.jobIndex);
@@ -3258,6 +3293,11 @@ namespace wiScene
 	}
 	void Scene::RunMaterialUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)materials.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			MaterialComponent& material = materials[args.jobIndex];
@@ -3299,6 +3339,11 @@ namespace wiScene
 	}
 	void Scene::RunImpostorUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		if (impostors.GetCount() > 0 && !impostorArray.IsValid())
 		{
 			GraphicsDevice* device = wiRenderer::GetDevice();
@@ -3366,6 +3411,11 @@ namespace wiScene
 	}
 	void Scene::RunObjectUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		assert(objects.GetCount() == aabb_objects.GetCount());
 
 		lightmap_rects.resize(objects.GetCount());
@@ -3630,6 +3680,11 @@ namespace wiScene
 	}
 	void Scene::RunDecalUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		assert(decals.GetCount() == aabb_decals.GetCount());
 
 		for (size_t i = 0; i < decals.GetCount(); ++i)
@@ -3686,6 +3741,11 @@ namespace wiScene
 	}
 	void Scene::RunProbeUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		assert(probes.GetCount() == aabb_probes.GetCount());
 
 #ifdef GGREDUCED
@@ -3860,6 +3920,11 @@ namespace wiScene
 	}
 	void Scene::RunLightUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		assert(lights.GetCount() == aabb_lights.GetCount());
 
 		wiJobSystem::Dispatch(ctx, (uint32_t)lights.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
@@ -3917,6 +3982,11 @@ namespace wiScene
 	}
 	void Scene::RunParticleUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		wiJobSystem::Dispatch(ctx, (uint32_t)emitters.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			wiEmittedParticle& emitter = emitters[args.jobIndex];
@@ -3959,6 +4029,11 @@ namespace wiScene
 	}
 	void Scene::RunWeatherUpdateSystem(wiJobSystem::context& ctx)
 	{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT();
+#endif
+#endif
 		if (weathers.GetCount() > 0)
 		{
 			weather = weathers[0];
