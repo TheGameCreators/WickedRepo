@@ -38,6 +38,12 @@ bool g_bNoTerrainRender = false;
 float fWickedCallShadowFarPlane = 500000;
 float fWickedMaxCenterTest = 0.0;
 bool g_bDelayedShadows = true;
+uint32_t iCulledPointShadows = 0;
+uint32_t iCulledSpotShadows = 0;
+bool bEnableTerrainChunkCulling = false;
+bool bEnablePointShadowCulling = false;
+bool bEnableSpotShadowCulling = false;
+bool bEnableObjectCulling = true;
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -46,6 +52,13 @@ extern float fWickedMaxCenterTest;
 extern float fWickedCallShadowFarPlane;
 extern bool g_bNoTerrainRender;
 extern bool g_bDelayedShadows;
+extern uint32_t iCulledPointShadows;
+
+extern uint32_t iCulledSpotShadows;
+extern bool bEnableTerrainChunkCulling;
+extern bool bEnablePointShadowCulling;
+extern bool bEnableSpotShadowCulling;
+extern bool bEnableObjectCulling;
 #endif
 #endif
 
@@ -3626,27 +3639,27 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				group_count = 0; // first thread initializes local counter
 			}
 
-				const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
+			const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
 
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
+			{
+				// Local stream compaction:
+				//	(also compute light distance for shadow priority sorting)
+				assert(args.jobIndex < 0xFFFF);
+				group_list[group_count].index = (uint16_t)args.jobIndex;
+				const LightComponent& lightcomponent = vis.scene->lights[args.jobIndex];
+				float distance = 0;
+				if (lightcomponent.type != LightComponent::DIRECTIONAL)
 				{
-					// Local stream compaction:
-					//	(also compute light distance for shadow priority sorting)
-					assert(args.jobIndex < 0xFFFF);
-					group_list[group_count].index = (uint16_t)args.jobIndex;
-					const LightComponent& lightcomponent = vis.scene->lights[args.jobIndex];
-					float distance = 0;
-					if (lightcomponent.type != LightComponent::DIRECTIONAL)
-					{
-						distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
-					}
-					group_list[group_count].distance = uint16_t(distance * 10);
-					group_count++;
-					if (lightcomponent.IsVolumetricsEnabled())
-					{
-						vis.volumetriclight_request.store(true);
-					}
+					distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
 				}
+				group_list[group_count].distance = uint16_t(distance * 10);
+				group_count++;
+				if (lightcomponent.IsVolumetricsEnabled())
+				{
+					vis.volumetriclight_request.store(true);
+				}
+			}
 
 			// Global stream compaction:
 			if (args.isLastJobInGroup && group_count > 0)
@@ -3702,10 +3715,15 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			{
 				// Local stream compaction:
 				group_list[group_count++] = args.jobIndex;
-
+				if (vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
+				{
+					ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+					object.SetCulled(false);
+				}
 				if (vis.flags & Visibility::ALLOW_REQUEST_REFLECTION)
 				{
 					const ObjectComponent& object = vis.scene->objects[args.jobIndex];
+
 					if (object.IsRequestPlanarReflection())
 					{
 						float dist = wiMath::DistanceEstimated(vis.camera->Eye, object.center);
@@ -3727,6 +3745,15 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 						}
 						vis.locker.unlock();
 					}
+				}
+			}
+			else
+			{
+				//PE: Set object as culled.
+				if (vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
+				{
+					ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+					object.SetCulled(true);
 				}
 			}
 
@@ -3876,50 +3903,102 @@ void UpdatePerFrameData(
 	if (GetOcclusionCullingEnabled() && !GetFreezeCullingCameraEnabled())
 	{
 		//PE: Occlusion Culling.
-		for (int i = 0; i < vis.visibleObjects.size(); i++)
+		if (bEnableObjectCulling)
 		{
-			int idx = vis.visibleObjects[i];
-			ObjectComponent& object = scene.objects[idx];
-			if (!object.IsRenderable())
-				continue;
-
-			AABB aabb = scene.aabb_objects[idx];
-
-			if (aabb.intersects(vis.camera->Eye))
+			for (int i = 0; i < vis.visibleObjects.size(); i++)
 			{
-				// camera is inside the instance, mark it as visible in this frame:
-				object.occlusionHistory |= 1;
-			}
-			else
-			{
-				const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
-				if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+				int idx = vis.visibleObjects[i];
+				ObjectComponent& object = scene.objects[idx];
+				if (!object.IsRenderable())
+					continue;
+				if (object.IsCulled())
+					continue;
+
+				AABB aabb = scene.aabb_objects[idx];
+
+				if (aabb.intersects(vis.camera->Eye))
 				{
-					object.occlusionQueries[scene.queryheap_idx] = writeQuery;
+					// camera is inside the instance, mark it as visible in this frame:
+					object.occlusionHistory |= 1;
+					object.occlusionQueries[scene.queryheap_idx] = -1;
 				}
 				else
-					object.occlusionQueries[scene.queryheap_idx] = -1;
+				{
+					const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
+					if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+					{
+						object.occlusionQueries[scene.queryheap_idx] = writeQuery;
+					}
+					else
+						object.occlusionQueries[scene.queryheap_idx] = -1;
+				}
 			}
 		}
 #ifdef GGREDUCED
 		TerrainChunkOcclusion* pTCO;
 		uint32_t lodstart = GGTerrain::GetChunkLodStart();
-		for (int lod = lodstart; lod < 9; lod++)
+		if (bEnableTerrainChunkCulling)
 		{
-			for (int i = 0; i < 64; i++)
+			for (int lod = lodstart; lod < 9; lod++)
 			{
-				pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
-				if (pTCO && pTCO->bChunkVisible)
+				for (int i = 0; i < 64; i++)
 				{
-					AABB aabb = pTCO->aabb;
-
-					const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
-					if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+					pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
+					if (pTCO && pTCO->bChunkVisible)
 					{
-						pTCO->writeQuery = writeQuery;
+						AABB aabb = pTCO->aabb;
+
+						const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
+						if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+						{
+							pTCO->writeQuery = writeQuery;
+						}
+						else
+							pTCO->writeQuery = 0;
 					}
-					else
-						pTCO->writeQuery = 0;
+				}
+			}
+		}
+
+		if (bEnableSpotShadowCulling || bEnablePointShadowCulling)
+		{
+			for (auto visibleLight : vis.visibleLights)
+			{
+				uint16_t lightIndex = visibleLight.index;
+				LightComponent& light = scene.lights[lightIndex];
+				bool shadow = light.IsCastingShadow() && !light.IsStatic();
+
+				if (shadow)
+				{
+					switch (light.GetType())
+					{
+					case LightComponent::DIRECTIONAL:
+						break;
+					case LightComponent::SPOT:
+						if (bEnableSpotShadowCulling)
+						{
+							const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
+							if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+							{
+								light.writeQuery = writeQuery;
+							}
+							else
+								light.writeQuery = 0;
+						}
+						break;
+					default:
+						if (bEnablePointShadowCulling)
+						{
+							const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
+							if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
+							{
+								light.writeQuery = writeQuery;
+							}
+							else
+								light.writeQuery = 0;
+						}
+						break;
+					}
 				}
 			}
 		}
@@ -5037,84 +5116,163 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 
 		static uint32_t iOCFrames = 0;
 		iOCFrames++;
-		for (uint32_t instanceIndex : vis.visibleObjects)
+		if (bEnableObjectCulling)
 		{
-			const ObjectComponent& object = vis.scene->objects[instanceIndex];
-			if (!object.IsRenderable())
+			for (uint32_t instanceIndex : vis.visibleObjects)
 			{
-				continue;
-			}
-			if (!object.IsOccluded())
-			{
-				//PE: visible object only get cheked each 3 frames.
-				if( (instanceIndex + iOCFrames) % 3 != 0)
+				const ObjectComponent& object = vis.scene->objects[instanceIndex];
+				if (!object.IsRenderable())
+				{
 					continue;
-			}
-
-			int queryIndex = object.occlusionQueries[query_write];
-			if (queryIndex >= 0)
-			{
-				AABB aabb = vis.scene->aabb_objects[instanceIndex];
-
-				//PE: expand the box not needed after moving it out of the job system.
-				// expand the box slightly so it makes the object visible before it comes into view
-				//const float expansion = 0.0f;
-				//aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
-				//aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
-
-				const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
-
-				if (bindless)
-				{
-					device->PushConstants(&transform, sizeof(transform), cmd);
 				}
-				else
+				if (object.IsCulled())
+					continue;
+
+				if (!object.IsOccluded())
 				{
-					MiscCB cb;
-					XMStoreFloat4x4(&cb.g_xTransform, transform);
-					device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
-					device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+					//PE: visible object only get cheked each 3 frames.
+					if ((instanceIndex + iOCFrames) % 3 != 0)
+						continue;
 				}
 
-				// render bounding box to later read the occlusion status
-				device->QueryBegin(&queryHeap, queryIndex, cmd);
-				device->Draw(14, 0, cmd);
-				device->QueryEnd(&queryHeap, queryIndex, cmd);
+				int queryIndex = object.occlusionQueries[query_write];
+				if (queryIndex >= 0)
+				{
+					AABB aabb = vis.scene->aabb_objects[instanceIndex];
+
+					//PE: expand the box not needed after moving it out of the job system.
+					// expand the box slightly so it makes the object visible before it comes into view
+					//const float expansion = 0.0f;
+					//aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
+					//aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
+
+					const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+
+					if (bindless)
+					{
+						device->PushConstants(&transform, sizeof(transform), cmd);
+					}
+					else
+					{
+						MiscCB cb;
+						XMStoreFloat4x4(&cb.g_xTransform, transform);
+						device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
+						device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+					}
+
+					// render bounding box to later read the occlusion status
+					device->QueryBegin(&queryHeap, queryIndex, cmd);
+					device->Draw(14, 0, cmd);
+					device->QueryEnd(&queryHeap, queryIndex, cmd);
+				}
 			}
 		}
 #ifdef GGREDUCED
 		TerrainChunkOcclusion* pTCO;
 		uint32_t lodstart = GGTerrain::GetChunkLodStart();
-		for (int lod = lodstart; lod < 9; lod++)
+		if (bEnableTerrainChunkCulling)
 		{
-			for (int i = 0; i < 64; i++)
+			for (int lod = lodstart; lod < 9; lod++)
 			{
-				pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
-				if (pTCO && pTCO->bChunkVisible)
+				for (int i = 0; i < 64; i++)
 				{
-					if (pTCO->writeQuery > 0)
+					pTCO = GGTerrain::GetChunkVisibleMem(lod, i);
+					if (pTCO && pTCO->bChunkVisible)
 					{
-						int qIndex = pTCO->writeQuery;
-						AABB aabb = pTCO->aabb;
-
-						const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
-
-						if (bindless)
+						if (pTCO->writeQuery > 0)
 						{
-							device->PushConstants(&transform, sizeof(transform), cmd);
-						}
-						else
-						{
-							MiscCB cb;
-							XMStoreFloat4x4(&cb.g_xTransform, transform);
-							device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
-							device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
-						}
+							int qIndex = pTCO->writeQuery;
+							AABB aabb = pTCO->aabb;
 
-						// render bounding box to later read the occlusion status
-						device->QueryBegin(&queryHeap, qIndex, cmd);
-						device->Draw(14, 0, cmd);
-						device->QueryEnd(&queryHeap, qIndex, cmd);
+							const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+
+							if (bindless)
+							{
+								device->PushConstants(&transform, sizeof(transform), cmd);
+							}
+							else
+							{
+								MiscCB cb;
+								XMStoreFloat4x4(&cb.g_xTransform, transform);
+								device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
+								device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+							}
+
+							// render bounding box to later read the occlusion status
+							device->QueryBegin(&queryHeap, qIndex, cmd);
+							device->Draw(14, 0, cmd);
+							device->QueryEnd(&queryHeap, qIndex, cmd);
+						}
+					}
+				}
+			}
+		}
+		if (bEnableSpotShadowCulling || bEnablePointShadowCulling)
+		{
+			for (auto visibleLight : vis.visibleLights)
+			{
+				uint16_t lightIndex = visibleLight.index;
+				const LightComponent& light = vis.scene->lights[lightIndex];
+				bool shadow = light.IsCastingShadow() && !light.IsStatic();
+
+				if (shadow)
+				{
+					switch (light.GetType())
+					{
+					case LightComponent::DIRECTIONAL:
+						break;
+					case LightComponent::SPOT:
+						if (light.writeQuery > 0 && bEnableSpotShadowCulling)
+						{
+							int qIndex = light.writeQuery;
+							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
+
+							const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+
+							if (bindless)
+							{
+								device->PushConstants(&transform, sizeof(transform), cmd);
+							}
+							else
+							{
+								MiscCB cb;
+								XMStoreFloat4x4(&cb.g_xTransform, transform);
+								device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
+								device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+							}
+
+							// render bounding box to later read the occlusion status
+							device->QueryBegin(&queryHeap, qIndex, cmd);
+							device->Draw(14, 0, cmd);
+							device->QueryEnd(&queryHeap, qIndex, cmd);
+						}
+						break;
+					default:
+						if (light.writeQuery > 0 && bEnablePointShadowCulling)
+						{
+							int qIndex = light.writeQuery;
+							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
+
+							const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+
+							if (bindless)
+							{
+								device->PushConstants(&transform, sizeof(transform), cmd);
+							}
+							else
+							{
+								MiscCB cb;
+								XMStoreFloat4x4(&cb.g_xTransform, transform);
+								device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &cb, cmd);
+								device->BindConstantBuffer(VS, &constantBuffers[CBTYPE_MISC], CB_GETBINDSLOT(MiscCB), cmd);
+							}
+
+							// render bounding box to later read the occlusion status
+							device->QueryBegin(&queryHeap, qIndex, cmd);
+							device->Draw(14, 0, cmd);
+							device->QueryEnd(&queryHeap, qIndex, cmd);
+						}
+						break;
 					}
 				}
 			}
@@ -5766,6 +5924,8 @@ void DrawShadowmaps(
 		device->EventBegin("DrawShadowmaps", cmd);
 		auto range = wiProfiler::BeginRangeGPU("Shadow Rendering", cmd);
 
+		iCulledPointShadows = 0;
+		iCulledSpotShadows = 0;
 		BindCommonResources(cmd);
 		BindConstantBuffers(VS, cmd);
 		BindConstantBuffers(PS, cmd);
@@ -5954,6 +6114,12 @@ void DrawShadowmaps(
 				uint32_t slice = shadowCounter_Spot_2D;
 				shadowCounter_Spot_2D += 1;
 
+				if (light.history == 0 && bEnableSpotShadowCulling)
+				{
+					iCulledSpotShadows++;
+					break;
+				}
+
 				SHCAM shcam;
 				CreateSpotLightShadowCam(light, shcam);
 				if (!cam_frustum.Intersects(shcam.boundingfrustum))
@@ -6018,6 +6184,12 @@ void DrawShadowmaps(
 					break;
 				uint32_t slice = shadowCounter_Cube;
 				shadowCounter_Cube += 1;
+
+				if (light.history == 0 && bEnablePointShadowCulling)
+				{
+					iCulledPointShadows++;
+					break;
+				}
 
 				//char profileName[256];
 				//float distance = wiMath::Distance(vis.camera->Eye, light.position); // GGREDUCED was const
@@ -6222,7 +6394,7 @@ void DrawScene(
 	{
 		ObjectComponent& object = (ObjectComponent&)vis.scene->objects[instanceIndex]; // GGREDUCED was const
 
-		if (occlusion && object.IsOccluded())
+		if (occlusion && object.IsOccluded() && bEnableObjectCulling)
 			continue;
 
 		if (object.IsRenderable() && (object.GetRenderTypes() & renderTypeFlags))

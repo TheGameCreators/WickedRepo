@@ -620,6 +620,7 @@ namespace wiScene
 			IMPOSTOR_PLACEMENT = 1 << 3,
 			REQUEST_PLANAR_REFLECTION = 1 << 4,
 			LIGHTMAP_RENDER_REQUEST = 1 << 5,
+			CULLED = 1 << 6,
 		};
 		uint32_t _flags = RENDERABLE | CAST_SHADOW;
 
@@ -674,6 +675,7 @@ namespace wiScene
 		}
 
 		inline void SetRenderable(bool value) { if (value) { _flags |= RENDERABLE; } else { _flags &= ~RENDERABLE; } }
+		inline void SetCulled(bool value) { if (value) { _flags |= CULLED; } else { _flags &= ~CULLED; } }
 		inline void SetCastShadow(bool value) { if (value) { _flags |= CAST_SHADOW; } else { _flags &= ~CAST_SHADOW; } }
 		inline void SetDynamic(bool value) { if (value) { _flags |= DYNAMIC; } else { _flags &= ~DYNAMIC; } }
 		inline void SetImpostorPlacement(bool value) { if (value) { _flags |= IMPOSTOR_PLACEMENT; } else { _flags &= ~IMPOSTOR_PLACEMENT; } }
@@ -681,6 +683,7 @@ namespace wiScene
 		inline void SetLightmapRenderRequest(bool value) { if (value) { _flags |= LIGHTMAP_RENDER_REQUEST; } else { _flags &= ~LIGHTMAP_RENDER_REQUEST; } }
 
 		inline bool IsRenderable() const { return _flags & RENDERABLE; }
+		inline bool IsCulled() const { return _flags & CULLED; }
 		inline bool IsCastingShadow() const { return _flags & CAST_SHADOW; }
 		inline bool IsDynamic() const { return _flags & DYNAMIC; }
 		inline bool IsImpostorPlacement() const { return _flags & IMPOSTOR_PLACEMENT; }
@@ -879,6 +882,9 @@ namespace wiScene
 		XMFLOAT3 scale;
 		XMFLOAT3 front;
 		XMFLOAT3 right;
+		uint32_t writeQuery = 0;
+		uint32_t history = 1;
+
 
 		std::vector<std::shared_ptr<wiResource>> lensFlareRimTextures;
 
@@ -1058,10 +1064,12 @@ namespace wiScene
 		float speed = 50;
 		uint32_t primaryanimid = 0;
 		uint32_t useprimaryanimtimer = 0;
+		uint32_t objectIndex = 0;
 #else
 		float speed = 1;
 		uint32_t primaryanimid = 0;
 		uint32_t useprimaryanimtimer = 0;
+		uint32_t objectIndex = 0;
 #endif
 
 		struct AnimationChannel
