@@ -5,6 +5,12 @@
 #include "wiRenderer.h"
 
 #ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
+
+#ifdef GGREDUCED
 void ImGuiHook_RenderCall(void* ctx);
 
 namespace GGTerrain {
@@ -181,11 +187,9 @@ void RenderPath2D::FixedUpdate()
 void RenderPath2D::Render( int mode ) const
 {
 #ifdef GGREDUCED
-//	extern bool g_bNo2DRender;
-//	if (g_bNo2DRender)
-//	{
-//		return;
-//	}
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
 #endif
 
 	GraphicsDevice* device = wiRenderer::GetDevice();

@@ -31,6 +31,12 @@
 #include <algorithm>
 #include <array>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
+
 #define ENABLE_TRANSPARENT_SHADOWS
 //#define DELAYEDSHADOWS //PE: sometimes (rare) one cascade display all black, think i need to use the same shcam everywhere ?
 #ifdef SHADERCOMPILER
@@ -5916,6 +5922,11 @@ void DrawShadowmaps(
 	CommandList cmd
 )
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	if (IsWireRender())
 		return;
 
@@ -6297,6 +6308,11 @@ void DrawScene(
 	uint32_t flags
 )
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	const bool opaque = flags & RENDERTYPE_OPAQUE;
 	const bool transparent = flags & DRAWSCENE_TRANSPARENT;
 	const bool tessellation = (flags & DRAWSCENE_TESSELLATION) && GetTessellationEnabled();
@@ -7737,6 +7753,11 @@ void RefreshAtmosphericScatteringTextures(CommandList cmd)
 }
 void DrawSky(const Scene& scene, CommandList cmd)
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	device->EventBegin("DrawSky", cmd);
 	
 	if (scene.weather.skyMap != nullptr)
@@ -8783,6 +8804,11 @@ void GenerateMipChain(const Texture& texture, MIPGENFILTER filter, CommandList c
 
 void CopyTexture2D(const Texture& dst, int DstMIP, int DstX, int DstY, const Texture& src, int SrcMIP, CommandList cmd, BORDEREXPANDSTYLE borderExpand)
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	const TextureDesc& desc_dst = dst.GetDesc();
 	const TextureDesc& desc_src = src.GetDesc();
 

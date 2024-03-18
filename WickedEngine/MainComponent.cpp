@@ -25,6 +25,12 @@
 #include <sstream>
 #include <algorithm>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
+
 using namespace wiGraphics;
 
 void MainComponent::Initialize()
@@ -205,6 +211,12 @@ void MainComponent::Run()
 		Compose(cmd);
 		wiRenderer::GetDevice()->RenderPassEnd(cmd);
 		wiProfiler::EndFrame(cmd);
+
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT("wiRenderer::SubmitCommandLists");
+#endif
+#endif
 		wiRenderer::GetDevice()->SubmitCommandLists();
 	}
 	#ifdef GGREDUCED
@@ -214,8 +226,7 @@ void MainComponent::Run()
 
 void MainComponent::Update(float dt)
 {
-	auto range = wiProfiler::BeginRangeCPU("Update");
-
+	auto range1 = wiProfiler::BeginRangeCPU("Update");
 #ifndef GGREDUCED
 	wiLua::SetDeltaTime(double(dt));
 	wiLua::Update();
@@ -226,8 +237,7 @@ void MainComponent::Update(float dt)
 		GetActivePath()->Update(dt);
 		GetActivePath()->PostUpdate();
 	}
-
-	wiProfiler::EndRange(range); // Update
+	wiProfiler::EndRange(range1);
 }
 
 void MainComponent::FixedUpdate()
