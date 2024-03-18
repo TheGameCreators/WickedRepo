@@ -10,6 +10,13 @@
 #include <sstream>
 #include <algorithm>
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+char g_pGraphicsCardName[256];
+#endif
+
 // These will let the driver select the dedicated GPU in favour of the integrated one:
 extern "C" {
 	_declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
@@ -1345,7 +1352,6 @@ GraphicsDevice_DX11::GraphicsDevice_DX11(bool debuglayer)
 
 #ifndef PLATFORM_UWP
 	HMODULE dx11 = LoadLibraryEx(L"d3d11.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-
 	D3D11CreateDevice = (PFN_D3D11_CREATE_DEVICE)GetProcAddress(dx11, "D3D11CreateDevice");
 	assert(D3D11CreateDevice != nullptr);
 #endif // PLATFORM_UWP
@@ -1374,15 +1380,71 @@ GraphicsDevice_DX11::GraphicsDevice_DX11(bool debuglayer)
 	};
 	uint32_t numFeatureLevels = arraysize(featureLevels);
 
-	for (uint32_t driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++)
+	// fun fact, DX11 Wicked just picked the first adapter that came along :)
+	//#ifdef GGREDUCED
+	strcpy(g_pGraphicsCardName, "");
+	HMODULE dxgi = LoadLibraryEx(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	using PFN_CREATE_DXGI_FACTORY_2 = decltype(&CreateDXGIFactory2);
+	static PFN_CREATE_DXGI_FACTORY_2 CreateDXGIFactory2 = nullptr;
+	CreateDXGIFactory2 = (PFN_CREATE_DXGI_FACTORY_2)GetProcAddress(dxgi, "CreateDXGIFactory2");
+	assert(CreateDXGIFactory2 != nullptr);
+	ComPtr<IDXGIFactory> dxgiFactory;
+	hr = CreateDXGIFactory2(debuglayer ? DXGI_CREATE_FACTORY_DEBUG : 0u, IID_PPV_ARGS(&dxgiFactory));
+	if (FAILED(hr))
 	{
-		driverType = driverTypes[driverTypeIndex];
-		hr = D3D11CreateDevice(nullptr, driverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &device
-			, &featureLevel, &immediateContext);
-
-		if (SUCCEEDED(hr))
-			break;
+		std::stringstream ss("");
+		ss << "Failed to create DXGI factory! ERROR: " << std::hex << hr;
+		wiHelper::messageBox(ss.str(), "Error!");
+		assert(0);
+		wiPlatform::Exit();
 	}
+	// pick the highest performance adapter that is able to create the device
+	ComPtr<IDXGIAdapter> dxgiAdapter;
+	int iAttemptsFindingAdapter = 0;
+	bool bSuccessFindingAdapter = false;
+	while (bSuccessFindingAdapter == false)
+	{
+		for (uint32_t index = 0; index < 4; index++)
+		{
+			dxgiFactory->EnumAdapters(index, &dxgiAdapter);
+			if (dxgiAdapter)
+			{
+				DXGI_ADAPTER_DESC adapterDesc;
+				dxgiAdapter->GetDesc(&adapterDesc);
+				char cDeviceName[MAX_PATH];
+				int length = wcstombs(cDeviceName, adapterDesc.Description, MAX_PATH);
+				//MessageBoxA(NULL, cDeviceName, cDeviceName, MB_OK);
+				if (iAttemptsFindingAdapter == 0)
+				{
+					if (strstr(cDeviceName, "intel") != NULL)
+					{
+						continue;
+					}
+				}
+				hr = D3D11CreateDevice(dxgiAdapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, createDeviceFlags, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &device, &featureLevel, &immediateContext);
+				if (SUCCEEDED(hr))
+				{
+					bSuccessFindingAdapter = true;
+					strcpy(g_pGraphicsCardName, cDeviceName);
+					break;
+				}
+			}
+		}
+		iAttemptsFindingAdapter++;
+		if(iAttemptsFindingAdapter > 1)
+		{
+			break;
+		}
+	}
+	//#else
+	//for (uint32_t driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++)
+	//{
+	//	driverType = driverTypes[driverTypeIndex];
+	//	hr = D3D11CreateDevice(dxgiAdapter, driverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &device, &featureLevel, &immediateContext);
+	//	if (SUCCEEDED(hr))
+	//		break;
+	//}
+	//#endif
 	if (FAILED(hr))
 	{
 		std::stringstream ss("");
@@ -2791,11 +2853,21 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 	{
 		HRESULT hr = deviceContexts[cmd]->FinishCommandList(false, &commandLists[cmd]);
 		assert(SUCCEEDED(hr));
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT("ExecuteCommandList");
+#endif
+#endif
 		immediateContext->ExecuteCommandList(commandLists[cmd].Get(), false);
 		commandLists[cmd].Reset();
 
 		for (auto& swapchain : swapchains[cmd])
 		{
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+			OPTICK_EVENT("Present");
+#endif
+#endif
 #ifdef GGREDUCED
 			//PE: We need to disable present when grabbing from the backbuffer.
 			extern bool g_bNoSwapchainPresent;
@@ -3433,7 +3505,14 @@ void GraphicsDevice_DX11::CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOf
 	srcBox.back = 1;
 	context->CopySubresourceRegion( dstRes, 0, dstOffset, 0, 0, srcRes, 0, &srcBox );
 }
+
+char* GraphicsDevice_DX11::GetGraphicsCardName(void)
+{
+	// Get the adapter (video card) description.
+	return g_pGraphicsCardName;
+}
 #endif
+
 void GraphicsDevice_DX11::UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize)
 {
 	assert(buffer->desc.Usage != USAGE_IMMUTABLE && "Cannot update IMMUTABLE GPUBuffer!");

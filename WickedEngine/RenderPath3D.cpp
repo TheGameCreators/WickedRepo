@@ -18,6 +18,11 @@ extern float maxApparentSize; // = 0.000002f;
 #define REMOVE_RAY_TRACED_SHADOW
 #endif
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+#include "optick.h"
+#endif
+#endif
 
 using namespace wiGraphics;
 
@@ -638,6 +643,11 @@ void RenderPath3D::StorePreviousRight()
 
 void RenderPath3D::Update(float dt)
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	if (rtGbuffer[GBUFFER_COLOR].desc.SampleCount != msaaSampleCount)
 	{
 		ResizeBuffers();
@@ -647,8 +657,7 @@ void RenderPath3D::Update(float dt)
 
 	if (getSceneUpdateEnabled())
 	{
-	scene->Update(dt * wiRenderer::GetGameSpeed());
-
+		scene->Update(dt * wiRenderer::GetGameSpeed());
 		if (wiRenderer::GetRaytracedShadowsEnabled() ||
 			getAO() == AO_RTAO ||
 			getRaytracedReflectionEnabled())
@@ -658,6 +667,11 @@ void RenderPath3D::Update(float dt)
 	}
 
 	// Frustum culling for main camera:
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT("wiRenderer::UpdateVisibility");
+#endif
+#endif
 	visibility_main.layerMask = getLayerMask();
 	visibility_main.scene = scene;
 	visibility_main.camera = camera;
@@ -674,6 +688,11 @@ void RenderPath3D::Update(float dt)
 		visibility_reflection.scene = scene;
 		visibility_reflection.camera = &camera_reflection;
 		visibility_reflection.flags = wiRenderer::Visibility::ALLOW_OBJECTS;
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+		OPTICK_EVENT("wiRenderer::UpdateVisibility getReflectionsEnabled");
+#endif
+#endif
 		wiRenderer::UpdateVisibility( visibility_reflection, std::max(maxApparentSize, 0.002f) ); // reflections cull more agressively by default
 	}
 
@@ -681,6 +700,11 @@ void RenderPath3D::Update(float dt)
 	internalResolution.x = GetWidth3D();
 	internalResolution.y = GetHeight3D();
 
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT("wiRenderer::UpdatePerFrameData");
+#endif
+#endif
 	wiRenderer::UpdatePerFrameData(
 		*scene,
 		visibility_main,
@@ -700,6 +724,12 @@ void RenderPath3D::Update(float dt)
 	{
 		camera->jitter = XMFLOAT2(0, 0);
 	}
+
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT("camera->UpdateCamera");
+#endif
+#endif
 	camera->UpdateCamera();
 
 	if (getAO() != AO_RTAO)
@@ -717,6 +747,9 @@ void RenderPath3D::Update(float dt)
 
 void RenderPath3D::Render( int mode ) const
 {
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
 	GraphicsDevice* device = wiRenderer::GetDevice();
 	wiJobSystem::context ctx;
 	CommandList cmd;
@@ -1414,6 +1447,11 @@ void RenderPath3D::ComposeSimple2D(CommandList cmd) const
 
 void RenderPath3D::RenderFrameSetUp(CommandList cmd) const
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	GraphicsDevice* device = wiRenderer::GetDevice();
 
 	device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
@@ -1479,6 +1517,11 @@ void RenderPath3D::RenderAO(CommandList cmd) const
 }
 void RenderPath3D::RenderSSR(CommandList cmd) const
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	if (getSSREnabled() && !getRaytracedReflectionEnabled())
 	{
 		wiRenderer::Postprocess_SSR(
@@ -1495,6 +1538,11 @@ void RenderPath3D::RenderSSR(CommandList cmd) const
 }
 void RenderPath3D::RenderOutline(CommandList cmd) const
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	if (getOutlineEnabled())
 	{
 		wiRenderer::Postprocess_Outline(rtLinearDepth, cmd, getOutlineThreshold(), getOutlineThickness(), getOutlineColor());
@@ -1627,6 +1675,11 @@ void RenderPath3D::RenderOutlineHighlighers(wiGraphics::CommandList cmd) const
 #endif
 void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 {
+#ifdef GGREDUCED
+#ifdef OPTICK_ENABLE
+	OPTICK_EVENT();
+#endif
+#endif
 	GraphicsDevice* device = wiRenderer::GetDevice();
 
 	int cloudIndex = 0;
