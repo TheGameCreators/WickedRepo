@@ -2391,8 +2391,8 @@ namespace wiScene
 		OPTICK_EVENT();
 #endif
 #endif
-		wiJobSystem::Dispatch(ctx, (uint32_t)prev_transforms.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
-
+		wiJobSystem::Dispatch(ctx, (uint32_t)prev_transforms.GetCount(), small_subtask_groupsize, [&](wiJobArgs args)
+		{
 			PreviousFrameTransformComponent& prev_transform = prev_transforms[args.jobIndex];
 			Entity entity = prev_transforms.GetEntity(args.jobIndex);
 			const TransformComponent& transform = *transforms.GetComponent(entity);
