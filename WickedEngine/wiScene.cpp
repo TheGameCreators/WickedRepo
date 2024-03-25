@@ -28,7 +28,7 @@ bool g_bDelayedShadows = true;
 uint32_t iCulledPointShadows = 0;
 uint32_t iCulledSpotShadows = 0;
 uint32_t iCulledAnimations = 0;
-
+bool bEnable30FpsAnimations = false;
 bool bEnableTerrainChunkCulling = false;
 bool bEnablePointShadowCulling = false;
 bool bEnableSpotShadowCulling = false;
@@ -50,7 +50,7 @@ extern bool bEnablePointShadowCulling;
 extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
-
+extern bool bEnable30FpsAnimations;
 #endif
 #endif
 
@@ -2404,10 +2404,11 @@ namespace wiScene
 	{
 #ifdef GGREDUCED
 #ifdef OPTICK_ENABLE
-		OPTICK_EVENT();
+OPTICK_EVENT();
 #endif
-
 		iCulledAnimations = 0;
+		static uint32_t iAnimFrames = 0;
+		iAnimFrames++;
 		// extra loop to process primary animations, before allowing secondary to 'steal' the timer value to sync child animations to primary ones
 		for (int handleprimaryandsecondary = 0; handleprimaryandsecondary < 2; handleprimaryandsecondary++)
 		{
@@ -2417,33 +2418,47 @@ namespace wiScene
 				AnimationComponent& animation = animations[i];
 
 #ifdef GGREDUCED
-				if (handleprimaryandsecondary == 0 && animation.useprimaryanimtimer != 0) continue;
-				if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer == 0) continue;
-				if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer != 0)
+				bool bCulled = false;
+
+				if (bEnable30FpsAnimations)
 				{
-					// this results in getting some old data, not the one written into animations[i]!!
-					int iThisAnimIndexHereAndNow = -1;
-					for (size_t ii = 0; ii < animations.GetCount(); ++ii)
+					if ((iAnimFrames + i) % 2 == 0)
 					{
-						if (animation.useprimaryanimtimer == animations[ii].primaryanimid)
+						//PE: still add to timer so same speed.
+						iCulledAnimations++;
+						bCulled = true;
+					}
+				}
+				//if (!bCulled)
+				//{
+					if (handleprimaryandsecondary == 0 && animation.useprimaryanimtimer != 0) continue;
+					if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer == 0) continue;
+					if (handleprimaryandsecondary == 1 && animation.useprimaryanimtimer != 0)
+					{
+						// this results in getting some old data, not the one written into animations[i]!!
+						int iThisAnimIndexHereAndNow = -1;
+						for (size_t ii = 0; ii < animations.GetCount(); ++ii)
 						{
-							iThisAnimIndexHereAndNow = ii;
-							break;
+							if (animation.useprimaryanimtimer == animations[ii].primaryanimid)
+							{
+								iThisAnimIndexHereAndNow = ii;
+								break;
+							}
+						}
+						if (iThisAnimIndexHereAndNow != -1)
+						{
+							// this actually does not work, somehow reading older values than are generated inside this function, impressive!
+							animation.timer = animations[iThisAnimIndexHereAndNow].timer;
+							animation.speed = animations[iThisAnimIndexHereAndNow].speed;
+							animation.amount = animations[iThisAnimIndexHereAndNow].amount;
 						}
 					}
-					if(iThisAnimIndexHereAndNow!=-1)
+					else
 					{
-						// this actually does not work, somehow reading older values than are generated inside this function, impressive!
-						animation.timer = animations[iThisAnimIndexHereAndNow].timer;
-						animation.speed = animations[iThisAnimIndexHereAndNow].speed;
-						animation.amount = animations[iThisAnimIndexHereAndNow].amount;
+						if ((!animation.IsPlaying() && animation.timer == 0.0f) && animation.updateonce == false) continue;
 					}
-				}
-				else
-				{
-					if ((!animation.IsPlaying() && animation.timer == 0.0f) && animation.updateonce == false) continue;
-				}
-				animation.updateonce = false;
+					animation.updateonce = false;
+				//}
 #else
 				if (!animation.IsPlaying() && animation.timer == 0.0f)
 				{
@@ -2452,15 +2467,17 @@ namespace wiScene
 #endif
 
 #ifdef GGREDUCED
-				//objects.GetComponent()
-				bool bCulled = false;
-				ObjectComponent* object = objects.GetComponent(animation.objectIndex); //objects[animation.objectIndex];
-				if (bEnableAnimationCulling)
+				if (!bCulled)
 				{
-					if (object && ((object->IsOccluded() && bEnableObjectCulling) || object->IsCulled()))
+					//objects.GetComponent()
+					ObjectComponent* object = objects.GetComponent(animation.objectIndex);
+					if (bEnableAnimationCulling)
 					{
-						iCulledAnimations++;
-						bCulled = true;
+						if (object && ((object->IsOccluded() && bEnableObjectCulling) || object->IsCulled()))
+						{
+							iCulledAnimations++;
+							bCulled = true;
+						}
 					}
 				}
 				if (!bCulled)
@@ -2470,15 +2487,6 @@ namespace wiScene
 					{
 						assert(channel.samplerIndex < (int)animation.samplers.size());
 
-						//ObjectComponent* object = objects.GetComponent(channel.target);
-						//if (bEnableAnimationCulling)
-						//{
-						//	if (object && ((object->IsOccluded() && bEnableObjectCulling) || object->IsCulled()))
-						//	{
-						//		iCulledAnimations++;
-						//		continue;
-						//	}
-						//}
 						AnimationComponent::AnimationSampler& sampler = animation.samplers[channel.samplerIndex];
 						if (sampler.data == INVALID_ENTITY)
 						{
