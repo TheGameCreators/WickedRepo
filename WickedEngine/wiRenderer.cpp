@@ -38,18 +38,20 @@
 #endif
 
 #define ENABLE_TRANSPARENT_SHADOWS
-//#define DELAYEDSHADOWS //PE: sometimes (rare) one cascade display all black, think i need to use the same shcam everywhere ?
+#define DELAYEDSHADOWS //PE: sometimes (rare) one cascade display all black, think i need to use the same shcam everywhere ?
 #ifdef SHADERCOMPILER
 bool g_bNoTerrainRender = false;
 float fWickedCallShadowFarPlane = 500000;
 float fWickedMaxCenterTest = 0.0;
 bool g_bDelayedShadows = true;
+bool g_bDelayedShadowsLaptop = true;
 uint32_t iCulledPointShadows = 0;
 uint32_t iCulledSpotShadows = 0;
 bool bEnableTerrainChunkCulling = false;
 bool bEnablePointShadowCulling = false;
 bool bEnableSpotShadowCulling = false;
 bool bEnableObjectCulling = true;
+bool bEnableAnimationCulling = true;
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -58,6 +60,7 @@ extern float fWickedMaxCenterTest;
 extern float fWickedCallShadowFarPlane;
 extern bool g_bNoTerrainRender;
 extern bool g_bDelayedShadows;
+extern bool g_bDelayedShadowsLaptop;
 extern uint32_t iCulledPointShadows;
 
 extern uint32_t iCulledSpotShadows;
@@ -65,6 +68,7 @@ extern bool bEnableTerrainChunkCulling;
 extern bool bEnablePointShadowCulling;
 extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
+extern bool bEnableAnimationCulling;
 #endif
 #endif
 
@@ -2734,6 +2738,7 @@ inline void CreateSpotLightShadowCam(const LightComponent& light, SHCAM& shcam)
 #ifdef GGREDUCED
 #ifdef DELAYEDSHADOWS
 std::array<SHCAM, CASCADE_COUNT> restore_shcams;
+XMVECTOR restore_campos[CASCADE_COUNT];
 bool bUpdateCascade[CASCADE_COUNT];
 #endif
 #endif
@@ -2776,12 +2781,23 @@ inline void CreateDirLightShadowCams(const LightComponent& light, CameraComponen
 		//referenceSplitClamp * 7500 * invFar,  // mid2-mid3 split
 		//referenceSplitClamp * 50000 * invFar,    // mid3-far split
 		//referenceSplitClamp * 500000,	   // far plane
+
+		//referenceSplitClamp * 0.0f,    // near plane
+		//referenceSplitClamp * 500.0f * invFar,		// near-mid1 split
+		//referenceSplitClamp * 1000.0f * invFar,		// mid1-mid2 split
+		//referenceSplitClamp * 7500 * invFar,		// mid2-mid3 split
+		//referenceSplitClamp * 50000 * invFar,		// mid3-far split
+		//referenceSplitClamp * 1,					// far plane
+
+		//PE: Only bias per cascade can fix light leak problems.
 		referenceSplitClamp * 0.0f,    // near plane
-		referenceSplitClamp * 500.0f * invFar,		// near-mid1 split
-		referenceSplitClamp * 1000.0f * invFar,		// mid1-mid2 split
-		referenceSplitClamp * 7500 * invFar,		// mid2-mid3 split
-		referenceSplitClamp * 50000 * invFar,		// mid3-far split
-		referenceSplitClamp * 1,					// far plane
+		referenceSplitClamp * 380.0f * invFar,		// near-mid1 split YELLOW (60 fps)
+		referenceSplitClamp * 950.0f * invFar,		// mid1-mid2 split GREEN (30 fps)
+		referenceSplitClamp * 7500 * invFar,		// mid2-mid3 split NONE (20 fps)
+		referenceSplitClamp * 30000 * invFar,		// mid3-far split RED (Not in terrain). (15 fps)
+		referenceSplitClamp * 1,					// far plane CYAN (Not in terrain). (12 fps)
+
+
 #else
 	    referenceSplitClamp * 0.0f,	  // near plane
 		referenceSplitClamp * 0.01f,  // near-mid split
@@ -3605,7 +3621,7 @@ void ProcessDeferredMipGenRequests(CommandList cmd)
 	deferredMIPGens.clear();
 	deferredMIPGenLock.unlock();
 }
-
+//#pragma optimize("", off)
 void UpdateVisibility(Visibility& vis, float maxApparentSize)
 {
 	// Perform parallel frustum culling and obtain closest reflector:
@@ -3695,29 +3711,39 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			}
 
 			const AABB& aabb = vis.scene->aabb_objects[args.jobIndex];
+			bool bFrustum = false;
+			const bool bLayer = (aabb.layerMask & vis.layerMask);
+			float apparentSize = 9999.0f;
+			float centerX = 0.0f, centerY = 0.0f, centerZ = 0.0f;
 
-			float sizeX = aabb._max.x - aabb._min.x;
-			float sizeY = aabb._max.y - aabb._min.y;
-			float sizeZ = aabb._max.z - aabb._min.z;
-			float areaXY = sizeX * sizeY;
-			float areaXZ = sizeX * sizeZ;
-			float areaYZ = sizeY * sizeZ;
-			float largestArea = areaXY;
-			if ( areaXZ > largestArea ) largestArea = areaXZ;
-			if ( areaYZ > largestArea ) largestArea = areaYZ;
+			if (bLayer)
+			{
+				bFrustum = vis.frustum.CheckBoxFast(aabb);
+			}
+			if (bLayer && bFrustum)
+			{
+				float sizeX = aabb._max.x - aabb._min.x;
+				float sizeY = aabb._max.y - aabb._min.y;
+				float sizeZ = aabb._max.z - aabb._min.z;
+				float areaXY = sizeX * sizeY;
+				float areaXZ = sizeX * sizeZ;
+				float areaYZ = sizeY * sizeZ;
+				float largestArea = areaXY;
+				if (areaXZ > largestArea) largestArea = areaXZ;
+				if (areaYZ > largestArea) largestArea = areaYZ;
 
-			float centerX = (aabb._max.x + aabb._min.x) / 2.0f;
-			float centerY = (aabb._max.y + aabb._min.y) / 2.0f;
-			float centerZ = (aabb._max.z + aabb._min.z) / 2.0f;
+				centerX = (aabb._max.x + aabb._min.x) / 2.0f;
+				centerY = (aabb._max.y + aabb._min.y) / 2.0f;
+				centerZ = (aabb._max.z + aabb._min.z) / 2.0f;
 
-			float diffX = centerX - vis.camera->Eye.x;
-			float diffY = centerY - vis.camera->Eye.y;
-			float diffZ = centerZ - vis.camera->Eye.z;
+				float diffX = centerX - vis.camera->Eye.x;
+				float diffY = centerY - vis.camera->Eye.y;
+				float diffZ = centerZ - vis.camera->Eye.z;
 
-			float sqrDist = diffX*diffX + diffY*diffY + diffZ*diffZ;
-			float apparentSize = largestArea / sqrDist;
-
-			if ( apparentSize > maxApparentSize && (aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb) )
+				float sqrDist = diffX * diffX + diffY * diffY + diffZ * diffZ;
+				apparentSize = largestArea / sqrDist;
+			}
+			if ( apparentSize > maxApparentSize && bLayer && bFrustum)
 			{
 				// Local stream compaction:
 				group_list[group_count++] = args.jobIndex;
@@ -3759,7 +3785,23 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				if (vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
 				{
 					ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
-					object.SetCulled(true);
+					//PE: If frustum culled , need distance to object for Animation Culling (object behind you,must still give shadow).
+					if (bEnableAnimationCulling && !bFrustum && apparentSize > maxApparentSize)
+					{
+						//Check distance.
+						float dist = 99999.0f;
+						const TransformComponent& transform = vis.scene->transforms[object.transform_index];
+						dist = wiMath::DistanceEstimated(vis.camera->Eye, transform.GetPosition());
+						//float dist = wiMath::DistanceEstimated(vis.camera->Eye, object.center);
+						if (dist < 300.0f)
+						{
+							object.SetCulled(false);
+						}
+						else
+							object.SetCulled(true);
+					}
+					else
+						object.SetCulled(true);
 				}
 			}
 
@@ -3891,6 +3933,7 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 	}
 	wiProfiler::EndRange(range); // Frustum Culling
 }
+//#pragma optimize("", on)
 void UpdatePerFrameData(
 	Scene& scene,
 	const Visibility& vis,
@@ -3983,6 +4026,14 @@ void UpdatePerFrameData(
 					case LightComponent::SPOT:
 						if (bEnableSpotShadowCulling)
 						{
+							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
+							if (aabb.intersects(vis.camera->Eye))
+							{
+								//Camera inside light , make it visible.
+								light.writeQuery = 0;
+								light.history |= 1;
+								continue;
+							}
 							const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
 							if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
 							{
@@ -3995,6 +4046,14 @@ void UpdatePerFrameData(
 					default:
 						if (bEnablePointShadowCulling)
 						{
+							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
+							if (aabb.intersects(vis.camera->Eye))
+							{
+								//Camera inside light , make it visible.
+								light.writeQuery = 0;
+								light.history |= 1;
+								continue;
+							}
 							const uint32_t writeQuery = scene.queryAllocator.fetch_add(1); // allocate new occlusion query from heap
 							if (writeQuery < scene.queryHeap[scene.queryheap_idx].desc.queryCount)
 							{
@@ -4546,35 +4605,66 @@ void UpdateRenderData(
 
 					#ifdef GGREDUCED
 					#ifdef DELAYEDSHADOWS
-					//static int iDelayedShadows = 0;
-					//iDelayedShadows++;
-					//PE: Make sure we use the same framecount if function is called more then one time per frame.
 					int iDelayedShadows = device->GetFrameCount();
 					for (uint32_t cascade = 0; cascade < CASCADE_COUNT; ++cascade)
 					{
 						bUpdateCascade[cascade] = true;
-						if (g_bDelayedShadows)
+						if (g_bDelayedShadowsLaptop && g_bDelayedShadows)
 						{
-							if (cascade == 4 && (iDelayedShadows % 4) != 0) bUpdateCascade[cascade] = false;
-							if (cascade == 3 && (iDelayedShadows % 3) != 0) bUpdateCascade[cascade] = false;
-							if (cascade == 2 && (iDelayedShadows % 2) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 4 && (iDelayedShadows % 9) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 3 && (iDelayedShadows % 5) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 2 && (iDelayedShadows % 4) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 1 && (iDelayedShadows % 3) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 0 && (iDelayedShadows % 2) != 0) bUpdateCascade[cascade] = false;
 						}
-
+						else if (g_bDelayedShadows)
+						{
+							if (cascade == 4 && (iDelayedShadows % 9) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 3 && (iDelayedShadows % 4) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 2 && (iDelayedShadows % 3) != 0) bUpdateCascade[cascade] = false;
+							if (cascade == 1 && (iDelayedShadows % 2) != 0) bUpdateCascade[cascade] = false;
+						}
 					}
 					#endif
 					#endif
 #ifdef GGREDUCED
+					#ifdef DELAYEDSHADOWS
+					//PE: Even out load.
+					if (bUpdateCascade[1] && bUpdateCascade[2] && bUpdateCascade[3])
+					{
+						bUpdateCascade[3] = false;
+					}
+					else if (!bUpdateCascade[1] && !bUpdateCascade[2] && !bUpdateCascade[3])
+					{
+						bUpdateCascade[3] = true;
+					}
+					#endif
 					for( uint32_t i = 0; i < CASCADE_COUNT; i++ )
 					{
 						#ifdef DELAYEDSHADOWS
 						if (bUpdateCascade[i])
 						{
 							restore_shcams[i] = shcams[i];
+							restore_campos[i] = vis.camera->GetEye();
 							matrixArray[matrixCounter++] = shcams[i].VP;
 						}
 						else
 						{
-							matrixArray[matrixCounter++] = restore_shcams[i].VP;
+							XMVECTOR vectorSub = XMVectorSubtract(vis.camera->GetEye(),restore_campos[i]);
+							XMVECTOR length = XMVector3LengthEst(vectorSub);
+
+							float Distance = 0.0f;
+							XMStoreFloat(&Distance, length);
+							if ( fabs(Distance) > 64)
+							{
+								//PE: To far from last center, update.
+								restore_shcams[i] = shcams[i];
+								restore_campos[i] = vis.camera->GetEye();
+								matrixArray[matrixCounter++] = shcams[i].VP;
+								bUpdateCascade[i] = true;
+							}
+							else
+								matrixArray[matrixCounter++] = restore_shcams[i].VP;
 						}
 						#else
 						matrixArray[matrixCounter++] = shcams[i].VP;
@@ -8076,6 +8166,12 @@ void RefreshImpostors(const Scene& scene, CommandList cmd)
 		const ImpostorComponent& impostor = scene.impostors[impostorIndex];
 		if (!impostor.render_dirty)
 			continue;
+
+		int textureIndex = (int)(impostorIndex * impostorCaptureAngles * 3 + 3 * impostorCaptureAngles + impostorCaptureAngles);
+
+		if (textureIndex >= scene.renderpasses_impostor.size())
+			continue;
+
 		impostor.render_dirty = false;
 
 		Entity entity = scene.impostors.GetEntity(impostorIndex);

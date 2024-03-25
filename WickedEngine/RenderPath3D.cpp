@@ -7,6 +7,7 @@
 #include "wiProfiler.h"
 
 #ifdef GGREDUCED
+#define DELAYEDSHADOWS
 bool ImGuiHook_GetScissorArea(float* pX1, float* pY1, float* pX2, float* pY2);
 extern bool g_bNoTerrainRender;
 //const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
@@ -745,7 +746,7 @@ void RenderPath3D::Update(float dt)
 	std::swap(depthBuffer_Copy, depthBuffer_Copy1);
 }
 
-void RenderPath3D::Render( int mode ) const
+void RenderPath3D::Render(int mode) const
 {
 #ifdef OPTICK_ENABLE
 	OPTICK_EVENT();
@@ -757,34 +758,43 @@ void RenderPath3D::Render( int mode ) const
 	int cloudIndex = 0;
 	const wiScene::CameraComponent* previousCamera;
 	const wiScene::CameraComponent* previousCameraReflection;
-	switch( mode )
+	switch (mode)
 	{
-		case EYE_LEFT:
-		{
-			previousCamera = &camera_previousLeft;
-			previousCameraReflection = &camera_reflection_previousLeft;
-		} break;
+	case EYE_LEFT:
+	{
+		previousCamera = &camera_previousLeft;
+		previousCameraReflection = &camera_reflection_previousLeft;
+	} break;
 
-		case EYE_RIGHT:
-		{
-			previousCamera = &camera_previousRight;
-			previousCameraReflection = &camera_reflection_previousRight;
-			cloudIndex = 1;
-		} break;
+	case EYE_RIGHT:
+	{
+		previousCamera = &camera_previousRight;
+		previousCameraReflection = &camera_reflection_previousRight;
+		cloudIndex = 1;
+	} break;
 
-		default:
-		{
-			previousCamera = &camera_previous;
-			previousCameraReflection = &camera_reflection_previous;
-		}
+	default:
+	{
+		previousCamera = &camera_previous;
+		previousCameraReflection = &camera_reflection_previous;
+	}
 	}
 
 	// Preparing the frame:
 	cmd = device->BeginCommandList();
 	CommandList cmd_prepareframe = cmd;
+
+#ifdef DELAYEDSHADOWS
+	extern bool g_bDelayedShadows;
 	wiJobSystem::Execute(ctx, [this, cmd](wiJobArgs args) {
 		RenderFrameSetUp(cmd);
 		});
+#else
+
+	wiJobSystem::Execute(ctx, [this, cmd](wiJobArgs args) {
+		RenderFrameSetUp(cmd);
+		});
+#endif
 
 	if (scene->IsAccelerationStructureUpdateRequested())
 	{
@@ -1007,6 +1017,10 @@ void RenderPath3D::Render( int mode ) const
 			});
 
 	// Shadow maps:
+#ifdef DELAYEDSHADOWS
+	if (g_bDelayedShadows) //PE: dependencies.
+#endif
+		wiJobSystem::Wait(ctx);
 	if (getShadowsEnabled())
 	{
 		cmd = device->BeginCommandList();
@@ -1771,6 +1785,7 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 
 	if (!g_bNoTerrainRender)
 	{
+		
 		if (scene->weather.IsVolumetricClouds() && camera->Eye.y > (scene->weather.volumetricCloudParameters.CloudStartHeight * 39.37) + 500)
 		{
 			device->EventBegin("Volumetric Clouds Upsample + Blend", cmd);
@@ -1783,6 +1798,7 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 			);
 			device->EventEnd(cmd);
 		}
+		
 	}
 
 	if (getVolumeLightsEnabled() && visibility_main.IsRequestedVolumetricLights())
