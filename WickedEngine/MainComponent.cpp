@@ -109,6 +109,15 @@ void MainComponent::Run()
 		return;
 	}
 
+#ifdef GGREDUCED
+	// only essential calls while booting up with splash
+	if (is_completely_loaded == false)
+	{
+		Update(0);
+		return;
+	}
+#endif
+
 #ifndef GGREDUCED
 	static bool startup_script = false;
 	if (!startup_script)

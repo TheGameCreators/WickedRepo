@@ -7907,9 +7907,6 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 	if (!vis.scene->envmapArray.IsValid())
 		return;
 
-	//device->EventBegin("EnvironmentProbe Refresh", cmd);
-	//auto range = wiProfiler::BeginRangeGPU("Environment Probe Refresh", cmd);
-
 	BindCommonResources(cmd);
 
 	Viewport vp;
@@ -7918,6 +7915,10 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 
 	const float zNearP = vis.camera->zNearP;
 	const float zFarP = vis.camera->zFarP;
+
+#ifdef GGREDUCED
+	if (zNearP <= 0 || zFarP <= 0) return;
+#endif
 
 	auto render_probe = [&](const EnvironmentProbeComponent& probe, const AABB& probe_aabb) {
 
