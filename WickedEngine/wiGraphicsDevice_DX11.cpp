@@ -1595,11 +1595,12 @@ bool GraphicsDevice_DX11::CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform
 		sd.SampleDesc.Quality = 0;
 		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		sd.BufferCount = pDesc->buffercount;
-		sd.Flags = 0;
+		sd.Flags = 0;// DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;/// 0;
 		sd.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 		//if ( pDesc->vsync == false ) sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 		//else sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // must use the non-flip mode to support high frame rates in fullscreen and VR
+		//sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // must use the non-flip mode to support high frame rates in fullscreen and VR
+		sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; /// fix the issue of FPS going from 55 -> 30fps and keep locked at 30 fps (but causes AMD instability on RX 5500 XT)
 
 #ifdef PLATFORM_UWP
 		sd.Scaling = DXGI_SCALING_ASPECT_RATIO_STRETCH;
@@ -1633,7 +1634,7 @@ bool GraphicsDevice_DX11::CreateSwapChain(const SwapChainDesc* pDesc, wiPlatform
 		if (FAILED(hr))
 		{
 			return false;
-	}
+		}
 	}
 	else
 	{
@@ -2801,6 +2802,17 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 		}
 	}
 
+#ifdef GGREDUCED
+	D3D11_RECT pRects[D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
+	for (uint32_t i = 0; i < D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX; ++i)
+	{
+		pRects[i].left = 0;
+		pRects[i].top = 0;
+		pRects[i].right = 8000;
+		pRects[i].bottom = 8000;
+	}
+	deviceContexts[cmd]->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX, pRects);
+#else
 	D3D11_RECT pRects[8];
 	for (uint32_t i = 0; i < 8; ++i)
 	{
@@ -2810,6 +2822,7 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 		pRects[i].top = INT32_MIN;
 	}
 	deviceContexts[cmd]->RSSetScissorRects(8, pRects);
+#endif
 
 	stencilRef[cmd] = 0;
 	blendFactor[cmd] = XMFLOAT4(1, 1, 1, 1);
@@ -3073,6 +3086,23 @@ void GraphicsDevice_DX11::BindScissorRects(uint32_t numRects, const Rect* rects,
 	assert(rects != nullptr);
 	assert(numRects <= D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX);
 	D3D11_RECT pRects[D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX];
+#ifdef GGREDUCED
+	for (uint32_t i = 0; i < D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX; ++i)
+	{
+		pRects[i].left = 0;
+		pRects[i].top = 0;
+		pRects[i].right = 8000;
+		pRects[i].bottom = 8000;
+	}
+	for (uint32_t i = 0; i < numRects; ++i)
+	{
+		pRects[i].bottom = (LONG)rects[i].bottom;
+		pRects[i].left = (LONG)rects[i].left;
+		pRects[i].right = (LONG)rects[i].right;
+		pRects[i].top = (LONG)rects[i].top;
+	}
+	deviceContexts[cmd]->RSSetScissorRects(D3D11_VIEWPORT_AND_SCISSORRECT_MAX_INDEX, pRects);
+#else
 	for(uint32_t i = 0; i < numRects; ++i) {
 		pRects[i].bottom = (LONG)rects[i].bottom;
 		pRects[i].left = (LONG)rects[i].left;
@@ -3080,6 +3110,7 @@ void GraphicsDevice_DX11::BindScissorRects(uint32_t numRects, const Rect* rects,
 		pRects[i].top = (LONG)rects[i].top;
 	}
 	deviceContexts[cmd]->RSSetScissorRects(numRects, pRects);
+#endif
 }
 void GraphicsDevice_DX11::BindViewports(uint32_t NumViewports, const Viewport* pViewports, CommandList cmd)
 {
