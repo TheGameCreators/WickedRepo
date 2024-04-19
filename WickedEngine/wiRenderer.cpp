@@ -3538,23 +3538,21 @@ void RenderMeshes(
 						device->BindConstantBuffer(VS, &material.constantBuffer, CB_GETBINDSLOT(MaterialCB), cmd);
 						device->BindConstantBuffer(PS, &material.constantBuffer, CB_GETBINDSLOT(MaterialCB), cmd);
 
-						//PE: LOD do not need textures, also shadow only need basecolor.
+						//PE: LOD Not needed to set textures , also for shadow rendering.
 						// Bind all material textures:
+						//const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT];
 						const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
-						if (!bIsLodMesh)
+						if ((renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE) || (bIsLodMesh && material.GetAlphaRef() < 1.0f))
 						{
-							if ((renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE))
-							{
-								//PE: Only basecolormap needed for alphaclip and transparent.
-								material.WriteTextures(materialtextures, 1);
-							}
-							else
-							{
-								material.WriteTextures(materialtextures, arraysize(materialtextures));
-							}
-							device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
+							//PE: Only basecolormap needed to alphaclip and transparent.
+							material.WriteTextures(materialtextures, 1);
 						}
+						else if(!bIsLodMesh)
+						{
+							material.WriteTextures(materialtextures, arraysize(materialtextures));
+						}
+						device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
 
 						if (tessellatorRequested)
 						{
