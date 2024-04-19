@@ -52,12 +52,16 @@ bool bEnablePointShadowCulling = false;
 bool bEnableSpotShadowCulling = false;
 bool bEnableObjectCulling = true;
 bool bEnableAnimationCulling = true;
+float fLODMultiplier = 1.0f;
+uint32_t iCulledAnimations = 0;
+bool bEnable30FpsAnimations = false;
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
 #include "timeapi.h"
 extern float fWickedMaxCenterTest;
 extern float fWickedCallShadowFarPlane;
+extern float fLODMultiplier;
 extern bool g_bNoTerrainRender;
 extern bool g_bDelayedShadows;
 extern bool g_bDelayedShadowsLaptop;
@@ -401,7 +405,37 @@ struct RenderBatch
 	uint32_t hash;
 	uint32_t instance;
 	float distance;
+	bool blod;
 
+#ifdef GGREDUCED
+	//PE: Do not add distance , added in special sort.
+	//PE: Keep LODs in own batches (as no textures needed, fewer state changes).
+	inline void Create(size_t meshIndex, size_t instanceIndex, float _distance, bool bLOD = false)
+	{
+		hash = 0;
+		assert(meshIndex < 0x00FFFFFF);
+		hash |= (uint32_t)(meshIndex & 0x00FFFFFF);
+		if(bLOD)
+			hash |= (uint32_t)(0x80000000);
+
+		instance = (uint32_t)instanceIndex;
+		distance = _distance;
+		blod = bLOD;
+	}
+
+	inline bool GetLOD() const
+	{
+		return blod;
+	}
+
+	inline uint32_t GetMeshIndex() const
+	{
+		return hash & 0x00FFFFFF;
+	}
+
+#endif
+
+#ifdef GGDISABLE
 	inline void Create(size_t meshIndex, size_t instanceIndex, float _distance)
 	{
 		hash = 0;
@@ -423,6 +457,8 @@ struct RenderBatch
 	{
 		return hash & 0x00FFFFFF;
 	}
+#endif
+
 	inline uint32_t GetInstanceIndex() const
 	{
 		return instance;
@@ -475,7 +511,13 @@ struct RenderQueue
 		{
 			std::sort(batchArray, batchArray + batchCount, [sortType](const RenderBatch& a, const RenderBatch& b) -> bool
 			{
-				return ((sortType == SORT_FRONT_TO_BACK) ? (a.hash < b.hash) : (a.hash > b.hash));
+				//return ((sortType == SORT_FRONT_TO_BACK) ? (a.hash < b.hash) : (a.hash > b.hash));
+				//PE: Special sort that use meshindex as primary sort and then sort by distance to maximize instancing
+				//PE: Plus keep overdraw to a min. by sorting be distance as secondary.
+				if (a.hash == b.hash)
+					return(a.distance < b.distance);
+				else
+					return (a.hash < b.hash);
 			});
 		}
 	}
@@ -893,6 +935,9 @@ SHADERTYPE GetPSTYPE(RENDERPASS renderPass, bool alphatest, bool transparent, Ma
 		case wiScene::MaterialComponent::SHADERTYPE_UNLIT:
 			realPS = transparent ? PSTYPE_OBJECT_TRANSPARENT_UNLIT : PSTYPE_OBJECT_UNLIT;
 			break;
+		case wiScene::MaterialComponent::SHADERTYPE_LOD:
+			realPS = transparent ? PSTYPE_OBJECT_TRANSPARENT_LOD : PSTYPE_OBJECT_LOD;
+			break;
 		default:
 			break;
 		}
@@ -1118,6 +1163,8 @@ void LoadShaders()
 			{ "INSTANCEATLAS",			0, FORMAT_R32G32B32A32_FLOAT, INPUT_SLOT_INSTANCEDATA, InputLayout::APPEND_ALIGNED_ELEMENT, INPUT_PER_INSTANCE_DATA },
 		};
 		LoadShader(VS, shaders[VSTYPE_OBJECT_COMMON], "objectVS_common.cso");
+		LoadShader(VS, shaders[VSTYPE_OBJECT_LOD], "objectVS_lod.cso");
+		
 		});
 
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) {
@@ -1276,6 +1323,9 @@ void LoadShaders()
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_DEBUG], "objectPS_debug.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_PAINTRADIUS], "objectPS_paintradius.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_SIMPLE], "objectPS_simple.cso"); });
+
+	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_LOD], "objectPS_lod.cso"); });
+	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_TRANSPARENT_LOD], "objectPS_lod.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_PREPASS], "objectPS_prepass.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_OBJECT_PREPASS_ALPHATEST], "objectPS_prepass_alphatest.cso"); });
 	wiJobSystem::Execute(ctx, [](wiJobArgs args) { LoadShader(PS, shaders[PSTYPE_IMPOSTOR_PREPASS], "impostorPS_prepass.cso"); });
@@ -1492,6 +1542,10 @@ void LoadShaders()
 						{
 							const bool transparency = blendMode != BLENDMODE_OPAQUE;
 							SHADERTYPE realVS = GetVSTYPE((RENDERPASS)renderPass, tessellation, alphatest, transparency);
+							if (shaderType == wiScene::MaterialComponent::SHADERTYPE_LOD && renderPass == RENDERPASS_MAIN)
+							{
+								realVS = VSTYPE_OBJECT_LOD;
+							}
 							ILTYPES realVL = GetILTYPE((RENDERPASS)renderPass, tessellation, alphatest, transparency);
 							SHADERTYPE realHS = GetHSTYPE((RENDERPASS)renderPass, tessellation, alphatest);
 							SHADERTYPE realDS = GetDSTYPE((RENDERPASS)renderPass, tessellation, alphatest);
@@ -3069,6 +3123,7 @@ void RenderMeshes(
 			uint16_t padding;
 #endif
 			AABB aabb;
+			bool bLOD;
 		};
 		InstancedBatch* instancedBatchArray = nullptr;
 		int instancedBatchCount = 0;
@@ -3076,21 +3131,25 @@ void RenderMeshes(
 		// The following loop is writing the instancing batches to a GPUBuffer:
 		size_t prevMeshIndex = ~0;
 		uint8_t prevUserStencilRefOverride = 0;
+		bool prevBLOD = 0;
 		uint32_t instanceCount = 0;
 		for (uint32_t batchID = 0; batchID < renderQueue.batchCount; ++batchID) // Do not break out of this loop!
 		{
 			const RenderBatch& batch = renderQueue.batchArray[batchID];
 			const uint32_t meshIndex = batch.GetMeshIndex();
+			const bool bLOD = batch.GetLOD(); //PE: LOD
 			const uint32_t instanceIndex = batch.GetInstanceIndex();
 			const ObjectComponent& instance = vis.scene->objects[instanceIndex];
 			const AABB& instanceAABB = vis.scene->aabb_objects[instanceIndex];
 			const uint8_t userStencilRefOverride = instance.userStencilRef;
 
 			// When we encounter a new mesh inside the global instance array, we begin a new InstancedBatch:
-			if (meshIndex != prevMeshIndex || userStencilRefOverride != prevUserStencilRefOverride)
+			//PE: LOD mesh.IsRenderLOD() must have there own batches. STORE inside batch.
+			if (meshIndex != prevMeshIndex || userStencilRefOverride != prevUserStencilRefOverride || bLOD != prevBLOD)
 			{
 				prevMeshIndex = meshIndex;
 				prevUserStencilRefOverride = userStencilRefOverride;
+				prevBLOD = bLOD;
 
 				instancedBatchCount++;
 				InstancedBatch* instancedBatch = (InstancedBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(InstancedBatch));
@@ -3100,6 +3159,7 @@ void RenderMeshes(
 				instancedBatch->userStencilRefOverride = userStencilRefOverride;
 				instancedBatch->forceAlphatestForDithering = 0;
 				instancedBatch->aabb = AABB();
+				instancedBatch->bLOD = bLOD;
 #ifdef GGREDUCED
 				if(batch.GetDistance()<16000)
 					instancedBatch->paddingnickedfordistance = batch.GetDistance();
@@ -3300,13 +3360,26 @@ void RenderMeshes(
 					device->BindVertexBuffers(vbs, 0, arraysize(vbs), strides, offsets, cmd);
 				}
 
+				//PE: LOD
+				bool bIsLodMesh = false;
+				if (instancedBatch.bLOD)
+				{
+					bIsLodMesh = true;
+				}
+
 				for (const MeshComponent::MeshSubset& subset : mesh.subsets)
 				{
 					if (subset.indexCount == 0)
 					{
 						continue;
 					}
-					const MaterialComponent& material = vis.scene->materials[subset.materialIndex];
+
+					const MaterialComponent& material = vis.scene->materials[subset.materialIndex]; //vis.
+					auto shaderType = material.shaderType;
+					if (bIsLodMesh) //PE: LOD
+					{
+						shaderType = MaterialComponent::SHADERTYPE_LOD;
+					}
 
 					bool subsetRenderable = renderTypeFlags & material.GetRenderTypes();
 					if (renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE)
@@ -3375,12 +3448,12 @@ void RenderMeshes(
 									if (iDoubleRender == 0)
 									{
 										OBJECTRENDERING_DOUBLESIDED regularRenderFront = OBJECTRENDERING_DOUBLESIDED_BACKSIDE;
-										pso = &PSO_object[material.shaderType][renderPass][BLENDMODE_FORCEDEPTH][regularRenderFront][tessellatorRequested][alphatest];
+										pso = &PSO_object[shaderType][renderPass][BLENDMODE_FORCEDEPTH][regularRenderFront][tessellatorRequested][alphatest];
 									}
 									if (iDoubleRender == 1)
 									{
 										OBJECTRENDERING_DOUBLESIDED regularRenderFront = OBJECTRENDERING_DOUBLESIDED_DISABLED;
-										pso = &PSO_object[material.shaderType][renderPass][BLENDMODE_ALPHA][regularRenderFront][tessellatorRequested][alphatest];
+										pso = &PSO_object[shaderType][renderPass][BLENDMODE_ALPHA][regularRenderFront][tessellatorRequested][alphatest];
 									}
 									assert(pso->IsValid());
 								}
@@ -3389,16 +3462,16 @@ void RenderMeshes(
 									// for double sided transparent objects
 									if (useBlendMode == BLENDMODE_ALPHA) useBlendMode = BLENDMODE_ALPHANOZ;
 									OBJECTRENDERING_DOUBLESIDED regularRenderFront = OBJECTRENDERING_DOUBLESIDED_DISABLED;
-									pso = &PSO_object[material.shaderType][renderPass][useBlendMode][regularRenderFront][tessellatorRequested][alphatest];
+									pso = &PSO_object[shaderType][renderPass][useBlendMode][regularRenderFront][tessellatorRequested][alphatest];
 									assert(pso->IsValid());
 									doublesided = OBJECTRENDERING_DOUBLESIDED_BACKSIDE;
-									pso_backside = &PSO_object[material.shaderType][renderPass][useBlendMode][doublesided][tessellatorRequested][alphatest];
+									pso_backside = &PSO_object[shaderType][renderPass][useBlendMode][doublesided][tessellatorRequested][alphatest];
 									assert(pso_backside->IsValid());
 								}
 							}
 							else
 							{
-								pso = &PSO_object[material.shaderType][renderPass][blendMode][doublesided][tessellatorRequested][alphatest];
+								pso = &PSO_object[shaderType][renderPass][blendMode][doublesided][tessellatorRequested][alphatest];
 								assert(pso->IsValid());
 							}
 #else
@@ -3425,17 +3498,23 @@ void RenderMeshes(
 					if (renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE)
 					{
 						wiProfiler::CountDrawCallsShadows();
-						wiProfiler::CountPolygonsShadows( subset.indexCount / 3 );
+						wiProfiler::CountPolygonsShadows( (subset.indexCount / 3) * instancedBatch.instanceCount );
 					}
 					else if ( (renderTypeFlags & RENDERTYPE_TRANSPARENT) && (material.GetRenderTypes() & RENDERTYPE_TRANSPARENT) )
 					{
-						wiProfiler::CountDrawCallsTransparent();
-						wiProfiler::CountPolygonsTransparent( subset.indexCount / 3 );
+						if (renderPass == RENDERPASS_MAIN)
+						{
+							wiProfiler::CountDrawCallsTransparent();
+							wiProfiler::CountPolygonsTransparent((subset.indexCount / 3) * instancedBatch.instanceCount);
+						}
 					}
 					else
 					{
-						wiProfiler::CountDrawCalls();
-						wiProfiler::CountPolygons( subset.indexCount / 3 );
+						if (renderPass == RENDERPASS_MAIN)
+						{
+							wiProfiler::CountDrawCalls();
+							wiProfiler::CountPolygons((subset.indexCount / 3) * instancedBatch.instanceCount);
+						}
 					}
 #endif
 
@@ -3459,10 +3538,23 @@ void RenderMeshes(
 						device->BindConstantBuffer(VS, &material.constantBuffer, CB_GETBINDSLOT(MaterialCB), cmd);
 						device->BindConstantBuffer(PS, &material.constantBuffer, CB_GETBINDSLOT(MaterialCB), cmd);
 
+						//PE: LOD do not need textures, also shadow only need basecolor.
 						// Bind all material textures:
-						const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT];
-						material.WriteTextures(materialtextures, arraysize(materialtextures));
-						device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
+						const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
+
+						if (!bIsLodMesh)
+						{
+							if ((renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE))
+							{
+								//PE: Only basecolormap needed for alphaclip and transparent.
+								material.WriteTextures(materialtextures, 1);
+							}
+							else
+							{
+								material.WriteTextures(materialtextures, arraysize(materialtextures));
+							}
+							device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
+						}
 
 						if (tessellatorRequested)
 						{
@@ -3793,7 +3885,7 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 						const TransformComponent& transform = vis.scene->transforms[object.transform_index];
 						dist = wiMath::DistanceEstimated(vis.camera->Eye, transform.GetPosition());
 						//float dist = wiMath::DistanceEstimated(vis.camera->Eye, object.center);
-						if (dist < 300.0f)
+						if (dist < 600.0f)
 						{
 							object.SetCulled(false);
 						}
@@ -6122,6 +6214,8 @@ void DrawShadowmaps(
 									}
 								}
 							}
+							//PE: Way faster shadow render, using special sorting to max batch and min. overdraw.
+							renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
 						}
 
 						#ifdef GGREDUCED
@@ -6512,6 +6606,8 @@ void DrawScene(
 			}
 
 #ifdef GGREDUCED
+			object.SetCameraDistance(distance);
+
 			// LB: introduce a distance bias so that two transparent objects
 			// sharing the same space can set a priority of one over the other
 			distance = distance + object.GetRenderOrderBiasDistance();
@@ -6520,7 +6616,9 @@ void DrawScene(
 			RenderBatch* batch = (RenderBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(RenderBatch));
 			//size_t meshIndex = vis.scene->meshes.GetIndex(object.meshID);
 			//batch->Create(meshIndex, instanceIndex, distance);
-			batch->Create(object.mesh_index, instanceIndex, distance);
+
+			//PE: LOD objects that are in LOD mode need there own batches.
+			batch->Create(object.mesh_index, instanceIndex, distance, object.IsRenderLOD());
 			renderQueue.add(batch);
 		}
 	}
@@ -6545,10 +6643,14 @@ void DrawScene(
 		{
 			renderQueue.sortdistance(RenderQueue::SORT_BACK_TO_FRONT);
 		}
-		else if (renderPass == RENDERPASS_PREPASS)
+		else
 		{
 			renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
 		}
+		//else if (renderPass == RENDERPASS_PREPASS)
+		//{
+		//	renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
+		//}
 #else
 		renderQueue.sort(transparent ? RenderQueue::SORT_BACK_TO_FRONT : RenderQueue::SORT_FRONT_TO_BACK);
 #endif

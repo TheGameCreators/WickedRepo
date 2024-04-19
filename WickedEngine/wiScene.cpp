@@ -21,19 +21,19 @@
 #endif
 
 #ifdef SHADERCOMPILER
-bool g_bNoTerrainRender = false;
-float fWickedCallShadowFarPlane = 500000;
-float fWickedMaxCenterTest = 0.0;
-bool g_bDelayedShadows = true;
-uint32_t iCulledPointShadows = 0;
-uint32_t iCulledSpotShadows = 0;
-uint32_t iCulledAnimations = 0;
-bool bEnable30FpsAnimations = false;
-bool bEnableTerrainChunkCulling = false;
-bool bEnablePointShadowCulling = false;
-bool bEnableSpotShadowCulling = false;
-bool bEnableObjectCulling = false;
-bool bEnableAnimationCulling = false;
+extern bool g_bNoTerrainRender;
+extern float fWickedCallShadowFarPlane;
+extern float fWickedMaxCenterTest;
+extern bool g_bDelayedShadows;
+extern uint32_t iCulledPointShadows;
+extern uint32_t iCulledSpotShadows;
+extern uint32_t iCulledAnimations;
+extern bool bEnable30FpsAnimations;
+extern bool bEnableTerrainChunkCulling;
+extern bool bEnablePointShadowCulling;
+extern bool bEnableSpotShadowCulling;
+extern bool bEnableObjectCulling;
+extern bool bEnableAnimationCulling;
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -3567,9 +3567,21 @@ OPTICK_EVENT();
 			ObjectComponent& object = objects[args.jobIndex];
 			AABB& aabb = aabb_objects[args.jobIndex];
 
+#ifdef GGREDUCED
+			//PE: LOD
+			object.SetRenderLOD(false);
+			if (object.IsLOD())
+			{
+				if (object.GetCameraDistance() > object.GetLodDistance())
+				{
+					object.SetRenderLOD(true);
+				}
+			}
+#endif
 			// Update occlusion culling status:
 			if (!wiRenderer::GetFreezeCullingCameraEnabled())
 			{
+#ifdef GGREDUCED
 				if (bEnableObjectCulling)
 				{
 					object.occlusionHistory <<= 1; // advance history by 1 frame
@@ -3592,6 +3604,7 @@ OPTICK_EVENT();
 				{
 					object.occlusionHistory |= 1;
 				}
+#endif
 			}
 
 			aabb = AABB();
