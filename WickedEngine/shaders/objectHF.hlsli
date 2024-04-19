@@ -504,10 +504,16 @@ struct VertexSurface
 #endif // OBJECTSHADER_INPUT_PRE
 
 #ifdef OBJECTSHADER_INPUT_COL
+#ifdef OBJECTLOD
+		//PE: We switch of textures and force vertexcolors.
+		color *= input.GetVertexColor();
+#else
 		if (material.IsUsingVertexColors())
 		{
 			color *= input.GetVertexColor();
 		}
+
+#endif
 #endif // OBJECTSHADER_INPUT_COL
 		
 		normal = normalize(mul((float3x3)WORLD, input.GetNormal()));
@@ -1444,6 +1450,7 @@ struct OutputPrepass
 	float4 color = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_baseColorMap >= 0 && (g_xFrame_Options & OPTION_BIT_DISABLE_ALBEDO_MAPS) == 0)
 	{
@@ -1452,6 +1459,7 @@ struct OutputPrepass
 		baseColorMap.rgb = DEGAMMA(baseColorMap.rgb);
 		color *= baseColorMap;
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 
@@ -1478,7 +1486,9 @@ struct OutputPrepass
 
 #ifndef WATER
 #ifdef OBJECTSHADER_USE_TANGENT
+#ifndef OBJECTLOD
 	NormalMapping(input.uvsets, surface.N, TBN, bumpColor);
+#endif
 #endif // OBJECTSHADER_USE_TANGENT
 #endif // WATER
 
@@ -1486,18 +1496,24 @@ struct OutputPrepass
 	float4 surfaceMap = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_surfaceMap >= 0)
 	{
 		const float2 UV_surfaceMap = GetMaterial().uvset_surfaceMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 		surfaceMap = texture_surfacemap.Sample(sampler_objectshader, UV_surfaceMap);
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
+#ifdef OBJECTLOD
+	surfaceMap = float4(1,1,0,1);
+#endif
 
 	float4 specularMap = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_specularMap >= 0)
 	{
@@ -1505,17 +1521,19 @@ struct OutputPrepass
 		specularMap = texture_specularmap.Sample(sampler_objectshader, UV_specularMap);
 		specularMap.rgb = DEGAMMA(specularMap.rgb);
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
-
-
 
 	surface.create(GetMaterial(), color, surfaceMap, specularMap);
 
-
 	// Emissive map:
 	surface.emissiveColor = GetMaterial().emissiveColor;
+#ifdef OBJECTLOD
+	surface.emissiveColor.a = 0;
+#endif
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (surface.emissiveColor.a > 0 && GetMaterial().uvset_emissiveMap >= 0)
 	{
@@ -1524,6 +1542,7 @@ struct OutputPrepass
 		emissiveMap.rgb = DEGAMMA(emissiveMap.rgb);
 		surface.emissiveColor *= emissiveMap;
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 
@@ -1547,6 +1566,7 @@ struct OutputPrepass
 		float4 color2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial().uvset_baseColorMap >= 0 && (g_xFrame_Options & OPTION_BIT_DISABLE_ALBEDO_MAPS) == 0)
 		{
@@ -1554,17 +1574,20 @@ struct OutputPrepass
 			color2 = texture_basecolormap.Sample(sampler_objectshader, uv);
 			color2.rgb = DEGAMMA(color2.rgb);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		float4 surfaceMap2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial().uvset_surfaceMap >= 0)
 		{
 			float2 uv = GetMaterial().uvset_surfaceMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 			surfaceMap2 = texture_surfacemap.Sample(sampler_objectshader, uv);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		Surface surface2;
@@ -1572,6 +1595,7 @@ struct OutputPrepass
 		surface2.create(GetMaterial(), color2, surfaceMap2);
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial().normalMapStrength > 0 && GetMaterial().uvset_normalMap >= 0)
 		{
@@ -1580,11 +1604,13 @@ struct OutputPrepass
 			sam.rgb = sam.rgb * 2 - 1;
 			surface2.N = lerp(baseN, mul(sam.rgb, TBN), GetMaterial().normalMapStrength);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface2.emissiveColor = GetMaterial().emissiveColor;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial().uvset_emissiveMap >= 0 && any(GetMaterial().emissiveColor))
 		{
@@ -1593,6 +1619,7 @@ struct OutputPrepass
 			sam.rgb = DEGAMMA(sam.rgb);
 			surface2.emissiveColor *= sam;
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface.N += surface2.N * blend_weights.x;
@@ -1609,6 +1636,7 @@ struct OutputPrepass
 		float4 color2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial1().uvset_baseColorMap >= 0 && (g_xFrame_Options & OPTION_BIT_DISABLE_ALBEDO_MAPS) == 0)
 		{
@@ -1616,6 +1644,7 @@ struct OutputPrepass
 			color2 = texture_blend1_basecolormap.Sample(sampler_objectshader, uv);
 			color2.rgb = DEGAMMA(color2.rgb);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		float4 surfaceMap2 = 1;
@@ -1634,6 +1663,7 @@ struct OutputPrepass
 		surface2.create(GetMaterial1(), color2, surfaceMap2);
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial1().normalMapStrength > 0 && GetMaterial1().uvset_normalMap >= 0)
 		{
@@ -1642,11 +1672,13 @@ struct OutputPrepass
 			sam.rgb = sam.rgb * 2 - 1;
 			surface2.N = lerp(baseN, mul(sam.rgb, TBN), GetMaterial1().normalMapStrength);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface2.emissiveColor = GetMaterial1().emissiveColor;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial1().uvset_emissiveMap >= 0 && any(GetMaterial().emissiveColor))
 		{
@@ -1655,6 +1687,7 @@ struct OutputPrepass
 			sam.rgb = DEGAMMA(sam.rgb);
 			surface2.emissiveColor *= sam;
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface.N += surface2.N * blend_weights.y;
@@ -1671,6 +1704,7 @@ struct OutputPrepass
 		float4 color2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial2().uvset_baseColorMap >= 0 && (g_xFrame_Options & OPTION_BIT_DISABLE_ALBEDO_MAPS) == 0)
 		{
@@ -1678,17 +1712,20 @@ struct OutputPrepass
 			color2 = texture_blend2_basecolormap.Sample(sampler_objectshader, uv);
 			color2.rgb = DEGAMMA(color2.rgb);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		float4 surfaceMap2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial2().uvset_surfaceMap >= 0)
 		{
 			float2 uv = GetMaterial2().uvset_surfaceMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 			surfaceMap2 = texture_blend2_surfacemap.Sample(sampler_objectshader, uv);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		Surface surface2;
@@ -1696,6 +1733,7 @@ struct OutputPrepass
 		surface2.create(GetMaterial2(), color2, surfaceMap2);
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial2().normalMapStrength > 0 && GetMaterial2().uvset_normalMap >= 0)
 		{
@@ -1704,11 +1742,13 @@ struct OutputPrepass
 			sam.rgb = sam.rgb * 2 - 1;
 			surface2.N = lerp(baseN, mul(sam.rgb, TBN), GetMaterial2().normalMapStrength);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface2.emissiveColor = GetMaterial2().emissiveColor;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial2().uvset_emissiveMap >= 0 && any(GetMaterial2().emissiveColor))
 		{
@@ -1717,6 +1757,7 @@ struct OutputPrepass
 			sam.rgb = DEGAMMA(sam.rgb);
 			surface2.emissiveColor *= sam;
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface.N += surface2.N * blend_weights.z;
@@ -1733,6 +1774,7 @@ struct OutputPrepass
 		float4 color2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial3().uvset_baseColorMap >= 0 && (g_xFrame_Options & OPTION_BIT_DISABLE_ALBEDO_MAPS) == 0)
 		{
@@ -1740,17 +1782,20 @@ struct OutputPrepass
 			color2 = texture_blend3_basecolormap.Sample(sampler_objectshader, uv);
 			color2.rgb = DEGAMMA(color2.rgb);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		float4 surfaceMap2 = 1;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial3().uvset_surfaceMap >= 0)
 		{
 			float2 uv = GetMaterial3().uvset_surfaceMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 			surfaceMap2 = texture_blend3_surfacemap.Sample(sampler_objectshader, uv);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		Surface surface2;
@@ -1758,6 +1803,7 @@ struct OutputPrepass
 		surface2.create(GetMaterial3(), color2, surfaceMap2);
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial3().normalMapStrength > 0 && GetMaterial3().uvset_normalMap >= 0)
 		{
@@ -1766,11 +1812,13 @@ struct OutputPrepass
 			sam.rgb = sam.rgb * 2 - 1;
 			surface2.N = lerp(baseN, mul(sam.rgb, TBN), GetMaterial3().normalMapStrength);
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface2.emissiveColor = GetMaterial3().emissiveColor;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial3().uvset_emissiveMap >= 0 && any(GetMaterial3().emissiveColor))
 		{
@@ -1779,6 +1827,7 @@ struct OutputPrepass
 			sam.rgb = DEGAMMA(sam.rgb);
 			surface2.emissiveColor *= sam;
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		surface.N += surface2.N * blend_weights.w;
@@ -1801,6 +1850,7 @@ struct OutputPrepass
 
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	// Secondary occlusion map:
 	[branch]
 	if (GetMaterial().IsOcclusionEnabled_Secondary() && GetMaterial().uvset_occlusionMap >= 0)
@@ -1808,6 +1858,7 @@ struct OutputPrepass
 		const float2 UV_occlusionMap = GetMaterial().uvset_occlusionMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 		surface.occlusion *= texture_occlusionmap.Sample(sampler_objectshader, UV_occlusionMap).r;
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 
@@ -1832,6 +1883,7 @@ struct OutputPrepass
 	surface.sheen.roughness = GetMaterial().sheenRoughness;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_sheenColorMap >= 0)
 	{
@@ -1844,6 +1896,7 @@ struct OutputPrepass
 		const float2 uvset_sheenRoughnessMap = GetMaterial().uvset_sheenRoughnessMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 		surface.sheen.roughness *= texture_sheenroughnessmap.Sample(sampler_objectshader, uvset_sheenRoughnessMap).a;
 	}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 #endif // BRDF_SHEEN
 
@@ -1854,6 +1907,7 @@ struct OutputPrepass
 	surface.clearcoat.N = input.nor;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_clearcoatMap >= 0)
 	{
@@ -1866,7 +1920,9 @@ struct OutputPrepass
 		const float2 uvset_clearcoatRoughnessMap = GetMaterial().uvset_clearcoatRoughnessMap == 0 ? input.uvsets.xy : input.uvsets.zw;
 		surface.clearcoat.roughness *= texture_clearcoatroughnessmap.Sample(sampler_objectshader, uvset_clearcoatRoughnessMap).g;
 	}
+#endif
 #ifdef OBJECTSHADER_USE_TANGENT
+#ifndef OBJECTLOD
 	[branch]
 	if (GetMaterial().uvset_clearcoatNormalMap >= 0)
 	{
@@ -1876,6 +1932,7 @@ struct OutputPrepass
 		clearcoatNormalMap = clearcoatNormalMap * 2 - 1;
 		surface.clearcoat.N = mul(clearcoatNormalMap, TBN);
 	}
+#endif
 #endif // OBJECTSHADER_USE_TANGENT
 
 	surface.clearcoat.N = normalize(surface.clearcoat.N);
@@ -1937,6 +1994,7 @@ struct OutputPrepass
 		surface.transmission = GetMaterial().transmission;
 
 #ifdef OBJECTSHADER_USE_UVSETS
+#ifndef OBJECTLOD
 		[branch]
 		if (GetMaterial().uvset_transmissionMap >= 0)
 		{
@@ -1944,6 +2002,7 @@ struct OutputPrepass
 			float transmissionMap = texture_transmissionmap.Sample(sampler_objectshader, UV_transmissionMap).r;
 			surface.transmission *= transmissionMap;
 		}
+#endif
 #endif // OBJECTSHADER_USE_UVSETS
 
 		float2 size;
