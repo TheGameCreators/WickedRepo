@@ -2417,8 +2417,8 @@ OPTICK_EVENT();
 
 #ifdef GGREDUCED
 				bool bCulled = false;
-
-				if (bEnable30FpsAnimations)
+				//PE: Also respect animation.updateonce
+				if (bEnable30FpsAnimations && animation.updateonce == false)
 				{
 					if ((iAnimFrames + i) % 2 == 0)
 					{
@@ -2455,7 +2455,7 @@ OPTICK_EVENT();
 					{
 						if ((!animation.IsPlaying() && animation.timer == 0.0f) && animation.updateonce == false) continue;
 					}
-					animation.updateonce = false;
+
 				//}
 #else
 				if (!animation.IsPlaying() && animation.timer == 0.0f)
@@ -2465,7 +2465,7 @@ OPTICK_EVENT();
 #endif
 
 #ifdef GGREDUCED
-				if (!bCulled)
+				if (!bCulled && animation.updateonce == false)
 				{
 					//objects.GetComponent()
 					ObjectComponent* object = objects.GetComponent(animation.objectIndex);
@@ -2478,6 +2478,9 @@ OPTICK_EVENT();
 						}
 					}
 				}
+
+				animation.updateonce = false;
+
 				if (!bCulled)
 #endif
 				{
