@@ -12,23 +12,28 @@ namespace wiXInput
 {
 	XINPUT_STATE controllers[4] = {};
 	bool connected[arraysize(controllers)] = {};
-
+	uint32_t iConnectRetry = 0;
 	void Update()
 	{
+		//PE: XInputGetState slow ,so delay if not connected.
 		for (DWORD i = 0; i < arraysize(controllers); i++)
 		{
-			controllers[i] = {};
-			DWORD dwResult = XInputGetState(i, &controllers[i]);
+			if (connected[i] == true || (iConnectRetry % 120) == 0)
+			{
+				controllers[i] = {};
+				DWORD dwResult = XInputGetState(i, &controllers[i]);
 
-			if (dwResult == ERROR_SUCCESS)
-			{
-				connected[i] = true;
-			}
-			else
-			{
-				connected[i] = false;
+				if (dwResult == ERROR_SUCCESS)
+				{
+					connected[i] = true;
+				}
+				else
+				{
+					connected[i] = false;
+				}
 			}
 		}
+		iConnectRetry++;
 	}
 
 	int GetMaxControllerCount()

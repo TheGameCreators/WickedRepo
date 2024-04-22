@@ -150,6 +150,7 @@ namespace wiScene
 			SHADERTYPE_PBR_CLOTH,
 			SHADERTYPE_PBR_CLEARCOAT,
 			SHADERTYPE_PBR_CLOTH_CLEARCOAT,
+			SHADERTYPE_LOD,
 			SHADERTYPE_COUNT
 		} shaderType = SHADERTYPE_PBR;
 
@@ -621,6 +622,8 @@ namespace wiScene
 			REQUEST_PLANAR_REFLECTION = 1 << 4,
 			LIGHTMAP_RENDER_REQUEST = 1 << 5,
 			CULLED = 1 << 6,
+			LOD = 1 << 7, //GGREDUCED
+			RENDERLOD = 1 << 8, //GGREDUCED
 		};
 		uint32_t _flags = RENDERABLE | CAST_SHADOW;
 
@@ -663,6 +666,10 @@ namespace wiScene
 		float fRenderOrderBiasDistance = 0.0f;
 		inline void SetRenderOrderBiasDistance(float value) { fRenderOrderBiasDistance = value; }
 		inline float GetRenderOrderBiasDistance() { return fRenderOrderBiasDistance; }
+
+		float cameraDistance = 0.0f;
+		float lodDistance = 100000.0f;
+
 #endif
 
 		inline bool IsOccluded() const
@@ -692,6 +699,23 @@ namespace wiScene
 
 		inline float GetTransparency() const { return 1 - color.w; }
 		inline uint32_t GetRenderTypes() const { return rendertypeMask; }
+
+		//PE: LOD GGREDUCED
+#ifdef GGREDUCED
+		inline void SetLOD(bool value) { if (value) { _flags |= LOD; } else { _flags &= ~LOD; } }
+		inline void SetRenderLOD(bool value) { if (value) { _flags |= RENDERLOD; } else { _flags &= ~RENDERLOD; } }
+		inline bool IsRenderLOD() const { return _flags & RENDERLOD; }
+		inline bool IsLOD() const { return _flags & LOD; }
+		inline void SetLodDistance(float value) { lodDistance = value; }
+		inline float GetLodDistance() const
+		{
+			extern float fLODMultiplier;
+			return lodDistance * fLODMultiplier;
+		}
+		inline float GetCameraDistance() const { return cameraDistance; }
+		inline void SetCameraDistance(float value) { cameraDistance = value; }
+#endif
+		//GGREDUCED
 
 		// User stencil value can be in range [0, 15]
 		//	Values greater than 0 can be used to override userStencilRef of MaterialComponent
