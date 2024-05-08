@@ -657,10 +657,12 @@ namespace wiScene
 
 		int transform_index = -1;
 		int prev_transform_index = -1;
+		bool bPrev_In_Frustum = true;
 
 		// occlusion result history bitfield (32 bit->32 frame history)
 		uint32_t occlusionHistory = ~0;
-		int occlusionQueries[wiGraphics::GraphicsDevice::GetBufferCount() + 1];
+		//PE: Test 2 buffers.
+		int occlusionQueries[wiGraphics::GraphicsDevice::GetBufferCount()];
 
 #ifdef GGREDUCED
 		float fRenderOrderBiasDistance = 0.0f;
@@ -908,7 +910,8 @@ namespace wiScene
 		XMFLOAT3 right;
 		uint32_t writeQuery = 0;
 		uint32_t history = 1;
-
+		bool bNotRenderedInThisframe = false;
+		bool bPrev_In_Frustom = true;
 
 		std::vector<std::shared_ptr<wiResource>> lensFlareRimTextures;
 
