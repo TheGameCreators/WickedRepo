@@ -2768,6 +2768,10 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 	CommandList cmd = cmd_count.fetch_add(1);
 	assert(cmd < COMMANDLIST_COUNT);
 
+	if (cmd >= COMMANDLIST_COUNT)
+	{
+		__debugbreak();
+	}
 	if (deviceContexts[cmd] == nullptr)
 	{
 		// need to create one more command list:
@@ -2886,16 +2890,28 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 			//PE: We need to disable present when grabbing from the backbuffer.
 			extern bool g_bNoSwapchainPresent;
 			extern bool g_bNoVSync;
-
+			HRESULT hr;
 			if (g_bNoSwapchainPresent)
-				to_internal(swapchain)->swapChain->Present(0, DXGI_PRESENT_TEST); //VSYNC
+				hr = to_internal(swapchain)->swapChain->Present(0, DXGI_PRESENT_TEST); //VSYNC
 			else if (g_bNoVSync)
 			{
-				to_internal(swapchain)->swapChain->Present(0, 0);
+				hr = to_internal(swapchain)->swapChain->Present(0, 0);
 			}
 			else
 #endif
-				to_internal(swapchain)->swapChain->Present(swapchain->desc.vsync, 0);
+				hr = to_internal(swapchain)->swapChain->Present(swapchain->desc.vsync, 0);
+
+				if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+				{
+//#ifdef _DEBUG
+					//PE: For now lets get some info, should be in _DEBUG but.
+					char buff[64] = {};
+					sprintf_s(buff, "Device Lost: Reason code 0x%08X\n",
+						(hr == DXGI_ERROR_DEVICE_REMOVED) ? device->GetDeviceRemovedReason() : hr);
+					OutputDebugStringA(buff);
+//#endif
+					__debugbreak();
+				}
 		}
 	}
 	immediateContext->ClearState();
@@ -3135,7 +3151,7 @@ void GraphicsDevice_DX11::BindViewports(uint32_t NumViewports, const Viewport* p
 //PE: When running with optimizing off , i never get the crash. so try to only disable optimizing for this function.
 //PE: @Lee Looks like i dont get the crash when not optimizing this function ? could you test if it also works for you.
 #ifdef GGREDUCED
-#pragma optimize("", off)
+//#pragma optimize("", off)
 #endif
 
 void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* resource, uint32_t slot, CommandList cmd, int subresource)
@@ -3150,7 +3166,7 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 #ifdef GGREDUCED
 			if (internal_state->srv == NULL)
 			{
-				//__debugbreak();
+				__debugbreak();
 				return;
 			}
 #endif
@@ -3158,7 +3174,7 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 #ifdef GGREDUCED
 			if (SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1)
 			{
-				//__debugbreak();
+				__debugbreak();
 				return;
 			}
 #endif
@@ -3185,6 +3201,7 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 			deviceContexts[cmd]->GSSetShaderResources(slot, 1, &SRV);
 			break;
 		case wiGraphics::PS:
+			//PE: Crash in here, was from reflection, moved to mainthread for testing (looks good).
 			deviceContexts[cmd]->PSSetShaderResources(slot, 1, &SRV);
 			break;
 		case wiGraphics::CS:
@@ -3196,7 +3213,7 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 	}
 }
 #ifdef GGREDUCED
-#pragma optimize("", on)
+//#pragma optimize("", on)
 #endif
 
 void GraphicsDevice_DX11::BindResources(SHADERSTAGE stage, const GPUResource *const* resources, uint32_t slot, uint32_t count, CommandList cmd)

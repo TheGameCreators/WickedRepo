@@ -5,6 +5,8 @@
 #include "wiRenderer.h"
 
 #ifdef GGREDUCED
+//PE: We do not use any text/sprite/gui function in wicked so:
+#define DISABLERTFINAL
 #ifdef OPTICK_ENABLE
 #include "optick.h"
 #endif
@@ -56,6 +58,7 @@ void RenderPath2D::ResizeBuffers()
 		rtStenciled = Texture(); // this will be deleted here
 	}
 
+#ifndef DISABLERTFINAL
 	{
 		TextureDesc desc;
 		desc.BindFlags = BIND_RENDER_TARGET | BIND_SHADER_RESOURCE;
@@ -110,6 +113,7 @@ void RenderPath2D::ResizeBuffers()
 
 		device->CreateRenderPass(&desc, &renderpass_final);
 	}
+#endif
 
 }
 void RenderPath2D::ResizeLayout()
@@ -206,6 +210,7 @@ void RenderPath2D::Render( int mode ) const
 
 	// Special care for internal resolution, because stencil buffer is of internal resolution, 
 	//	so we might need to render stencil sprites to separate render target that matches internal resolution!
+#ifndef DISABLERTFINAL
 	if (rtStenciled.IsValid())
 	{
 		device->RenderPassBegin(&renderpass_stenciled, cmd);
@@ -232,7 +237,9 @@ void RenderPath2D::Render( int mode ) const
 
 		device->RenderPassEnd(cmd);
 	}
+#endif
 
+#ifndef DISABLERTFINAL
 	device->RenderPassBegin(&renderpass_final, cmd);
 
 	Viewport vp;
@@ -304,6 +311,7 @@ void RenderPath2D::Render( int mode ) const
 	GetGUI().Render(*this, cmd);
 
 	device->RenderPassEnd(cmd);
+#endif
 
 	RenderPath::Render( mode );
 }
@@ -316,11 +324,13 @@ void RenderPath2D::Compose(CommandList cmd) const
 //		return;
 #endif
 
+#ifndef DISABLERTFINAL
 	wiImageParams fx;
 	fx.enableFullScreen();
 	fx.blendFlag = BLENDMODE_PREMULTIPLIED;
 
 	wiImage::Draw(&rtFinal, fx, cmd);
+#endif
 
 #ifdef GGREDUCED
 

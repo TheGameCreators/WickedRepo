@@ -47,6 +47,8 @@ bool g_bDelayedShadows = true;
 bool g_bDelayedShadowsLaptop = true;
 uint32_t iCulledPointShadows = 0;
 uint32_t iCulledSpotShadows = 0;
+uint32_t iRenderedPointShadows = 0;
+uint32_t iRenderedSpotShadows = 0;
 bool bEnableTerrainChunkCulling = false;
 bool bEnablePointShadowCulling = false;
 bool bEnableSpotShadowCulling = false;
@@ -55,6 +57,8 @@ bool bEnableAnimationCulling = true;
 float fLODMultiplier = 1.0f;
 uint32_t iCulledAnimations = 0;
 bool bEnable30FpsAnimations = false;
+bool bShadowsInFrontTakesPriority = false;
+//bool bTmpTesting;
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -66,6 +70,9 @@ extern bool g_bNoTerrainRender;
 extern bool g_bDelayedShadows;
 extern bool g_bDelayedShadowsLaptop;
 extern uint32_t iCulledPointShadows;
+extern uint32_t iRenderedPointShadows;
+extern uint32_t iRenderedSpotShadows;
+
 
 extern uint32_t iCulledSpotShadows;
 extern bool bEnableTerrainChunkCulling;
@@ -73,6 +80,9 @@ extern bool bEnablePointShadowCulling;
 extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
+extern bool bShadowsInFrontTakesPriority;
+//extern bool bTmpTesting;
+
 #endif
 #endif
 
@@ -3369,6 +3379,8 @@ void RenderMeshes(
 
 				for (const MeshComponent::MeshSubset& subset : mesh.subsets)
 				{
+					//PE: Add subset.active (LOD control) , subset.shadow (shadow LOD) , subset.physics (physics LOD).
+					
 					if (subset.indexCount == 0)
 					{
 						continue;
@@ -3752,6 +3764,7 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			}
 
 			const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
+			LightComponent& lightcomponent = (LightComponent & ) vis.scene->lights[args.jobIndex];
 
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
 			{
@@ -3759,12 +3772,55 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				//	(also compute light distance for shadow priority sorting)
 				assert(args.jobIndex < 0xFFFF);
 				group_list[group_count].index = (uint16_t)args.jobIndex;
-				const LightComponent& lightcomponent = vis.scene->lights[args.jobIndex];
 				float distance = 0;
 				if (lightcomponent.type != LightComponent::DIRECTIONAL)
 				{
+#ifdef GGREDUCED
+					//bTmpTesting
+					if (!lightcomponent.bPrev_In_Frustom)
+					{
+						//PE: just got into frustom, recheck occlusion.
+						lightcomponent.history |= 1;
+					}
+#endif
+
 					distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
+#ifdef GGREDUCED
+					//PE: Before we allow more shadow lights, lets try this to stop more shadow popping.
+					if (bShadowsInFrontTakesPriority)
+					{
+						AABB aabb2;
+						XMFLOAT3 ext = aabb.getHalfWidth();
+						ext.x++;
+						ext.y++;
+						ext.z++;
+						XMFLOAT3 pos = aabb.getCenter();
+						const float expand = 0.5f;
+						aabb2._min = pos;
+						aabb2._max = pos;
+						aabb2._min.x -= ext.x * expand;
+						aabb2._min.y -= ext.y * expand;
+						aabb2._min.z -= ext.z * expand;
+						aabb2._max.x += ext.x * expand;
+						aabb2._max.y += ext.y * expand;
+						aabb2._max.z += ext.z * expand;
+
+						if (vis.frustum.CheckBoxFast(aabb2))
+						{
+							//PE: Center in front, give priority to shadows.
+							distance *= 0.4f;
+						}
+						else
+						{
+							//PE: Center of box behind us change distance to give lower priority for shadow rendering.
+							distance *= 1.6f;
+						}
+					}
+#endif
 				}
+#ifdef GGREDUCED
+				lightcomponent.bPrev_In_Frustom = true;
+#endif
 				group_list[group_count].distance = uint16_t(distance * 10);
 				group_count++;
 				if (lightcomponent.IsVolumetricsEnabled())
@@ -3772,7 +3828,12 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 					vis.volumetriclight_request.store(true);
 				}
 			}
-
+#ifdef GGREDUCED
+			else
+			{
+				lightcomponent.bPrev_In_Frustom = false;
+			}
+#endif
 			// Global stream compaction:
 			if (args.isLastJobInGroup && group_count > 0)
 			{
@@ -3802,9 +3863,13 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 
 			const AABB& aabb = vis.scene->aabb_objects[args.jobIndex];
 			bool bFrustum = false;
-			const bool bLayer = (aabb.layerMask & vis.layerMask);
+			bool bLayer = (aabb.layerMask & vis.layerMask);
 			float apparentSize = 9999.0f;
 			float centerX = 0.0f, centerY = 0.0f, centerZ = 0.0f;
+
+			ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+			if (!object.IsRenderable())
+				bLayer = false;
 
 			if (bLayer)
 			{
@@ -3833,18 +3898,25 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				float sqrDist = diffX * diffX + diffY * diffY + diffZ * diffZ;
 				apparentSize = largestArea / sqrDist;
 			}
+
 			if ( apparentSize > maxApparentSize && bLayer && bFrustum)
 			{
 				// Local stream compaction:
 				group_list[group_count++] = args.jobIndex;
 				if (vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
 				{
-					ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+					//ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+					//bTmpTesting
+					if (!object.bPrev_In_Frustum)
+					{
+						//PE: If it just got into frustum, recheck occlusion, this makes occluded objects instantly appear.
+						object.occlusionHistory |= 1;
+					}
 					object.SetCulled(false);
 				}
 				if (vis.flags & Visibility::ALLOW_REQUEST_REFLECTION)
 				{
-					const ObjectComponent& object = vis.scene->objects[args.jobIndex];
+					//const ObjectComponent& object = vis.scene->objects[args.jobIndex];
 
 					if (object.IsRequestPlanarReflection())
 					{
@@ -3872,29 +3944,38 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			else
 			{
 				//PE: Set object as culled.
-				if (vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
+				if (bLayer && vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
 				{
-					ObjectComponent& object = (ObjectComponent&)vis.scene->objects[args.jobIndex];
+					//ObjectComponent& object = (ObjectComponent&) vis.scene->objects[args.jobIndex];
 					//PE: If frustum culled , need distance to object for Animation Culling (object behind you,must still give shadow).
 					if (bEnableAnimationCulling && !bFrustum && apparentSize > maxApparentSize)
 					{
 						//Check distance.
-						float dist = 99999.0f;
-						const TransformComponent& transform = vis.scene->transforms[object.transform_index];
-						dist = wiMath::DistanceEstimated(vis.camera->Eye, transform.GetPosition());
-						//float dist = wiMath::DistanceEstimated(vis.camera->Eye, object.center);
-						if (dist < 600.0f)
+						//float dist = 99999.0f;
+						//const TransformComponent& transform = vis.scene->transforms[object.transform_index];
+						//dist = wiMath::DistanceEstimated(vis.camera->Eye, transform.GetPosition());
+						if (object.GetCameraDistance() < 600.0f)
 						{
 							object.SetCulled(false);
 						}
 						else
 							object.SetCulled(true);
 					}
-					else
+					else if (!bFrustum)
+					{
 						object.SetCulled(true);
+					}
 				}
 			}
-
+			if (bLayer && vis.flags == wiRenderer::Visibility::ALLOW_EVERYTHING) //GGREDUCED
+			{
+				if (bFrustum)
+				{
+					object.bPrev_In_Frustum = true;
+				}
+				else
+					object.bPrev_In_Frustum = false;
+			}
 			// Global stream compaction:
 			if (args.isLastJobInGroup && group_count > 0)
 			{
@@ -4052,6 +4133,12 @@ void UpdatePerFrameData(
 					continue;
 				if (object.IsCulled())
 					continue;
+				//PE: Dont occlude nearby object.
+				if (object.GetCameraDistance() < 1000) // bTmpTesting
+				{
+					object.occlusionHistory |= 1;
+					continue;
+				}
 
 				AABB aabb = scene.aabb_objects[idx];
 
@@ -4069,7 +4156,10 @@ void UpdatePerFrameData(
 						object.occlusionQueries[scene.queryheap_idx] = writeQuery;
 					}
 					else
+					{
+						object.occlusionHistory |= 1;
 						object.occlusionQueries[scene.queryheap_idx] = -1;
+					}
 				}
 			}
 		}
@@ -5278,7 +5368,7 @@ void UpdateRaytracingAccelerationStructures(const Scene& scene, CommandList cmd)
 
 	scene.acceleration_structure_update_requested = false;
 }
-
+//#pragma optimize("", off)
 void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visibility& vis, CommandList cmd)
 {
 	if (!GetOcclusionCullingEnabled() || GetFreezeCullingCameraEnabled())
@@ -5328,11 +5418,30 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 
 					//PE: expand the box not needed after moving it out of the job system.
 					// expand the box slightly so it makes the object visible before it comes into view
-					//const float expansion = 0.0f;
 					//aabb._min.x -= expansion; aabb._min.y -= expansion; aabb._min.y -= expansion;
 					//aabb._max.x += expansion; aabb._max.y += expansion; aabb._max.z -= expansion;
-
+#ifdef GGREDUCED
+					XMMATRIX transform;
+					const float expand = 2.5f;
+					if (1) //bTmpTesting
+					{
+						//PE: A little expanding was needed, mainly when one size is 0.
+						XMFLOAT3 ext = aabb.getHalfWidth();
+						ext.x++;
+						ext.y++;
+						ext.z++;
+						XMMATRIX sca = XMMatrixScaling( ext.x * expand, ext.y * expand, ext.z * expand);
+						XMFLOAT3 pos = aabb.getCenter();
+						XMMATRIX tra = XMMatrixTranslation(pos.x, pos.y, pos.z);
+						transform = (sca * tra) * VP;
+					}
+					else
+					{
+						transform = aabb.getAsBoxMatrix() * VP;
+					}
+#else
 					const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+#endif
 
 					if (bindless)
 					{
@@ -5439,7 +5548,26 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 							int qIndex = light.writeQuery;
 							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
 
-							const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
+							XMMATRIX transform;
+							const float expand = 1.5f;
+							if (1) //bTmpTesting
+							{
+								//PE: A little expanding was needed, mainly when one size is 0.
+								XMFLOAT3 ext = aabb.getHalfWidth();
+								ext.x++;
+								ext.y++;
+								ext.z++;
+								XMMATRIX sca = XMMatrixScaling(ext.x * expand, ext.y * expand, ext.z * expand);
+								XMFLOAT3 pos = aabb.getCenter();
+								XMMATRIX tra = XMMatrixTranslation(pos.x, pos.y, pos.z);
+								transform = (sca * tra) * VP;
+							}
+							else
+							{
+								transform = aabb.getAsBoxMatrix() * VP;
+							}
+
+							//const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
 
 							if (bindless)
 							{
@@ -5476,7 +5604,7 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 
 	wiProfiler::EndRange(range); // Occlusion Culling Render
 }
-
+//#pragma optimize("", on)
 void DrawWaterRipples(const Visibility& vis, CommandList cmd)
 {
 	// remove camera jittering
@@ -6117,6 +6245,9 @@ void DrawShadowmaps(
 
 		iCulledPointShadows = 0;
 		iCulledSpotShadows = 0;
+		iRenderedPointShadows = 0;
+		iRenderedSpotShadows = 0;
+
 		BindCommonResources(cmd);
 		BindConstantBuffers(VS, cmd);
 		BindConstantBuffers(PS, cmd);
@@ -6143,7 +6274,7 @@ void DrawShadowmaps(
 
 			uint16_t lightIndex = visibleLight.index;
 			const LightComponent& light = vis.scene->lights[lightIndex];
-			
+
 			bool shadow = light.IsCastingShadow() && !light.IsStatic();
 			if (!shadow)
 			{
@@ -6196,7 +6327,7 @@ void DrawShadowmaps(
 									const ObjectComponent& object = vis.scene->objects[i];
 									if (object.IsRenderable() && object.IsCastingShadow() && (cascade < (CASCADE_COUNT - object.cascadeMask)))
 									{
-										Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
+										//Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
 
 										RenderBatch* batch = (RenderBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(RenderBatch));
 										//size_t meshIndex = vis.scene->meshes.GetIndex(object.meshID);
@@ -6328,7 +6459,7 @@ void DrawShadowmaps(
 						const ObjectComponent& object = vis.scene->objects[i];
 						if (object.IsRenderable() && object.IsCastingShadow())
 						{
-							Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
+							//Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
 
 							RenderBatch* batch = (RenderBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(RenderBatch));
 							//size_t meshIndex = vis.scene->meshes.GetIndex(object.meshID);
@@ -6345,6 +6476,9 @@ void DrawShadowmaps(
 				}
 				if (!renderQueue.empty())
 				{
+					//PE: Way faster shadow render, using special sorting to max batch and min. overdraw.
+					renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
+
 					CameraCB cb;
 					XMStoreFloat4x4(&cb.g_xCamera_VP, shcam.VP);
 					device->UpdateBuffer(&constantBuffers[CBTYPE_CAMERA], &cb, cmd);
@@ -6367,6 +6501,7 @@ void DrawShadowmaps(
 					device->RenderPassEnd(cmd);
 
 					GetRenderFrameAllocator(cmd).free(sizeof(RenderBatch) * renderQueue.batchCount);
+					iRenderedSpotShadows++;
 				}
 
 			}
@@ -6383,6 +6518,21 @@ void DrawShadowmaps(
 					iCulledPointShadows++;
 					break;
 				}
+
+				//PE: Check if delayed POINT works. (FLICKER CHECK)
+				//if (light.bNotRenderedInThisframe)
+				//{
+				//	break;
+				//}
+
+				//LightComponent& light2 = (LightComponent & ) vis.scene->lights[lightIndex];
+				//light2.bNotRenderedInThisframe = false;
+				//int iDelayedShadows = device->GetFrameCount();
+				//if ((iDelayedShadows + shadowCounter_Cube) % 10 != 0)
+				//{
+				//	light2.bNotRenderedInThisframe = true;
+				//	break;
+				//}
 
 				//char profileName[256];
 				//float distance = wiMath::Distance(vis.camera->Eye, light.position); // GGREDUCED was const
@@ -6401,7 +6551,7 @@ void DrawShadowmaps(
 						const ObjectComponent& object = vis.scene->objects[i];
 						if (object.IsRenderable() && object.IsCastingShadow())
 						{
-							Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
+							//Entity cullable_entity = vis.scene->aabb_objects.GetEntity(i);
 
 							RenderBatch* batch = (RenderBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(RenderBatch));
 							//size_t meshIndex = vis.scene->meshes.GetIndex(object.meshID);
@@ -6418,6 +6568,9 @@ void DrawShadowmaps(
 				}
 				if (!renderQueue.empty())
 				{
+					//PE: Way faster shadow render, using special sorting to max batch and min. overdraw.
+					renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
+
 					MiscCB miscCb;
 					miscCb.g_xColor = float4(light.position.x, light.position.y, light.position.z, 0);
 					device->UpdateBuffer(&constantBuffers[CBTYPE_MISC], &miscCb, cmd);
@@ -6469,6 +6622,7 @@ void DrawShadowmaps(
 					device->RenderPassEnd(cmd);
 
 					GetRenderFrameAllocator(cmd).free(sizeof(RenderBatch) * renderQueue.batchCount);
+					iRenderedPointShadows++;
 				}
 
 				//wiProfiler::EndRange(range2);
@@ -6604,8 +6758,10 @@ void DrawScene(
 			}
 
 #ifdef GGREDUCED
-			object.SetCameraDistance(distance);
-
+			if (renderPass == RENDERPASS_MAIN)
+			{
+				object.SetCameraDistance(distance);
+			}
 			// LB: introduce a distance bias so that two transparent objects
 			// sharing the same space can set a priority of one over the other
 			distance = distance + object.GetRenderOrderBiasDistance();
@@ -8398,6 +8554,7 @@ void RefreshImpostors(const Scene& scene, CommandList cmd)
 				}
 
 				device->RenderPassEnd(cmd);
+
 			}
 		}
 

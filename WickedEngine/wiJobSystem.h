@@ -42,4 +42,7 @@ namespace wiJobSystem
 
 	// Wait until all threads become idle
 	void Wait(const context& ctx);
+#ifdef GGREDUCED
+	void WaitSleep(const context& ctx,uint32_t time);
+#endif
 }

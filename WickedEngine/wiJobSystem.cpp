@@ -184,4 +184,17 @@ namespace wiJobSystem
 		// Waiting will also put the current thread to good use by working on an other job if it can:
 		while (IsBusy(ctx)) { work(); }
 	}
+
+	void WaitSleep(const context& ctx, uint32_t time)
+	{
+		// Wake any threads that might be sleeping:
+		wakeCondition.notify_all();
+
+		//PE: Give time for free threads to take over jobs, before jumping in.
+		Sleep(time);
+
+		// Waiting will also put the current thread to good use by working on an other job if it can:
+		while (IsBusy(ctx)) { work(); }
+	}
+
 }

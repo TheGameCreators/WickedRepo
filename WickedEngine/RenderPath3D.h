@@ -343,7 +343,7 @@ public:
 	virtual void setMSAASampleCount(uint32_t value) { msaaSampleCount = value; }
 
 #ifdef GGREDUCED
-	void Set3DResolution( float width, float height );
+	void Set3DResolution( float width, float height , bool resizebuffers = true);
 	float GetWidth3D() const { return width3D; }
 	float GetHeight3D() const { return height3D; }
 	void SetFSRScale( float scale );

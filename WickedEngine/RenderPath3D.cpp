@@ -601,15 +601,15 @@ void RenderPath3D::ResizeBuffers()
 }
 
 // desired 3D resolution, may be reduced internally due to FSR
-void RenderPath3D::Set3DResolution( float width, float height )
+void RenderPath3D::Set3DResolution( float width, float height, bool resizebuffers)
 {
 	if ( width == 0 || height == 0 ) return;
 	if ( width3D == width && height3D == height ) return;
 
 	width3D = width / fsrUpScale;
 	height3D = height / fsrUpScale;
-
-	ResizeBuffers();
+	if(resizebuffers)
+		ResizeBuffers();
 }
 
 void RenderPath3D::SetFSRScale( float scale )
@@ -1136,9 +1136,10 @@ void RenderPath3D::Render(int mode) const
 
 			});
 
+		//PE: This crash a lot try to make the mainthread run it. (Looks ok).
 		// Planar reflections opaque color pass:
 		cmd = device->BeginCommandList();
-		wiJobSystem::Execute(ctx, [cmd, this, previousCameraReflection, cloudIndex](wiJobArgs args) {
+		//wiJobSystem::Execute(ctx, [cmd, this, previousCameraReflection, cloudIndex](wiJobArgs args) {
 
 			GraphicsDevice* device = wiRenderer::GetDevice();
 
@@ -1169,22 +1170,23 @@ void RenderPath3D::Render(int mode) const
 			device->RenderPassBegin(&renderpass_reflection, cmd);
 
 			device->BindResource(PS, &tiledLightResources_planarReflection.entityTiles_Opaque, TEXSLOT_RENDERPATH_ENTITYTILES, cmd);
+
 			device->BindResource(PS, wiTextureHelper::getTransparent(), TEXSLOT_RENDERPATH_REFLECTION, cmd);
 
-#ifdef GGREDUCED
-			// this can fail and crash (maybe race condition?)
-			const Texture* white = wiTextureHelper::getWhite();
-			if( !(white != nullptr && white->IsValid()))
-			{
-				//__debugbreak();
-			}
-			else
-			{
-				device->BindResource(PS, white, TEXSLOT_RENDERPATH_AO, cmd);
-			}
-#else
+//#ifdef GGREDUCED
+//			// this can fail and crash (maybe race condition?)
+//			const Texture* white = wiTextureHelper::getWhite();
+//			if( !(white != nullptr && white->IsValid()))
+//			{
+//				//__debugbreak();
+//			}
+//			else
+//			{
+//				device->BindResource(PS, white, TEXSLOT_RENDERPATH_AO, cmd);
+//			}
+//#else
 			device->BindResource(PS, wiTextureHelper::getWhite(), TEXSLOT_RENDERPATH_AO, cmd);
-#endif
+//#endif
 
 			device->BindResource(PS, wiTextureHelper::getTransparent(), TEXSLOT_RENDERPATH_SSR, cmd);
 			device->BindResource(PS, wiTextureHelper::getUINT4(), TEXSLOT_RENDERPATH_RTSHADOW, cmd);
@@ -1220,7 +1222,7 @@ void RenderPath3D::Render(int mode) const
 
 			wiProfiler::EndRange(range); // Planar Reflections
 			device->EventEnd(cmd);
-			});
+			//});
 	}
 
 	// Main camera opaque color pass:
@@ -1280,22 +1282,38 @@ void RenderPath3D::Render(int mode) const
 		#endif
 
 		device->BindResource(PS, &tiledLightResources.entityTiles_Opaque, TEXSLOT_RENDERPATH_ENTITYTILES, cmd);
+//#ifdef GGREDUCED
+//		const Texture* transparent = wiTextureHelper::getTransparent();
+//		if (!(transparent != nullptr && transparent->IsValid()))
+//		{
+//			__debugbreak();
+//		}
+//		else
+//			device->BindResource(PS, getReflectionsEnabled() ? &rtReflection : transparent, TEXSLOT_RENDERPATH_REFLECTION, cmd);
+//#else
 		device->BindResource(PS, getReflectionsEnabled() ? &rtReflection : wiTextureHelper::getTransparent(), TEXSLOT_RENDERPATH_REFLECTION, cmd);
-#ifdef GGREDUCED
-		// this can fail and crash (maybe race condition?)
-		const Texture* white = wiTextureHelper::getWhite();
-		if( !(white != nullptr && white->IsValid()))
-		{
-			//__debugbreak();
-		}
-		else
-		{
-			device->BindResource(PS, getAOEnabled() ? &rtAO : white, TEXSLOT_RENDERPATH_AO, cmd);
-		}
-#else
+//#endif
+
+//#ifdef GGREDUCED
+//		// this can fail and crash (maybe race condition?)
+//		const Texture* white = wiTextureHelper::getWhite();
+//		if( !(white != nullptr && white->IsValid()))
+//		{
+//			__debugbreak();
+//		}
+//		else
+//		{
+//			device->BindResource(PS, getAOEnabled() ? &rtAO : white, TEXSLOT_RENDERPATH_AO, cmd);
+//		}
+//#else
 		device->BindResource(PS, getAOEnabled() ? &rtAO : wiTextureHelper::getWhite(), TEXSLOT_RENDERPATH_AO, cmd);
-#endif
+//#endif
+//#ifdef GGREDUCED
+//		if ((transparent != nullptr && transparent->IsValid()))
+//			device->BindResource(PS, getSSREnabled() || getRaytracedReflectionEnabled() ? &rtSSR : transparent, TEXSLOT_RENDERPATH_SSR, cmd);
+//#else
 		device->BindResource(PS, getSSREnabled() || getRaytracedReflectionEnabled() ? &rtSSR : wiTextureHelper::getTransparent(), TEXSLOT_RENDERPATH_SSR, cmd);
+//#endif
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_MAIN, cmd, drawscene_flags);
 		wiProfiler::EndRange(range); // Opaque Scene
 
@@ -2197,8 +2215,9 @@ void RenderPath3D::setRaytracedReflectionsEnabled(bool value)
 void RenderPath3D::setFSREnabled(bool value)
 {
 	fsrEnabled = value;
-
-	if (resolutionScale < 1.0f && fsrEnabled)
+	
+	//if (resolutionScale < 1.0f && fsrEnabled)
+	if (GetFSRScale() != 1.0f && fsrEnabled) //PE: GGREDUCED
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 
