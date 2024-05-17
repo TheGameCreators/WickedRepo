@@ -816,7 +816,8 @@ void RenderPath3D::Render(int mode) const
 		wiRenderer::DRAWSCENE_OCCLUSIONCULLING
 		;
 	static const uint32_t drawscene_flags_reflections =
-		wiRenderer::DRAWSCENE_OPAQUE
+		wiRenderer::DRAWSCENE_OPAQUE |
+		wiRenderer::DRAWSCENE_REFLECTIONS
 		;
 
 	// Main camera depth prepass + occlusion culling:

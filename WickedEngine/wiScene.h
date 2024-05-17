@@ -352,8 +352,12 @@ namespace wiScene
 
 			// Non-serialized attributes:
 			uint32_t materialIndex = 0;
+			bool active = true;
 		};
 		std::vector<MeshSubset> subsets;
+
+		uint32_t lodlevels = 0;
+		bool activelodlevels = true;
 
 		float tessellationFactor = 0.0f;
 		wiECS::Entity armatureID = wiECS::INVALID_ENTITY;
@@ -658,6 +662,8 @@ namespace wiScene
 		int transform_index = -1;
 		int prev_transform_index = -1;
 		bool bPrev_In_Frustum = true;
+		uint32_t activelod = 0;
+		uint32_t forcelod = 0;
 
 		// occlusion result history bitfield (32 bit->32 frame history)
 		uint32_t occlusionHistory = ~0;
@@ -1070,7 +1076,7 @@ namespace wiScene
 
 		std::vector<float> keyframe_times;
 		std::vector<float> keyframe_data;
-
+		uint32_t prevKeyRight = 0;
 		void Serialize(wiArchive& archive, wiECS::EntitySerializer& seri);
 	};
 

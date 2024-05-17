@@ -193,6 +193,7 @@ namespace wiRenderer
 		DRAWSCENE_TESSELLATION = 1 << 3,
 		DRAWSCENE_HAIRPARTICLE = 1 << 4,
 		DRAWSCENE_OCEAN = 1 << 5,
+		DRAWSCENE_REFLECTIONS = 1 << 6,
 	};
 
 	// Draw the world from a camera. You must call UpdateCameraCB() at least once in this frame prior to this
