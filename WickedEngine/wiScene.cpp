@@ -34,6 +34,8 @@ extern bool bEnablePointShadowCulling;
 extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
+extern bool bRaycastLowestLOD;
+
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -51,6 +53,8 @@ extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
 extern bool bEnable30FpsAnimations;
+extern bool bRaycastLowestLOD;
+
 #endif
 #endif
 
@@ -503,7 +507,7 @@ namespace wiScene
 				device->CreateBuffer(&bd, &initData, &indexBuffer);
 				device->SetName(&indexBuffer, "indexBuffer_16bit");
 			}
-			}
+		}
 
 
 		XMFLOAT3 _min = XMFLOAT3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -808,7 +812,7 @@ namespace wiScene
 			SubresourceData InitData;
 			InitData.pSysMem = vertex_subsets.data();
 			device->CreateBuffer(&bd, &InitData, &vertexBuffer_SUB);
-			device->SetName(&vertexBuffer_SUB, "vertexBuffer_SUB");
+			device->SetName(&vertexBuffer_SUB, "vertexBuffer_SUB")vertexBuffer_SUB;
 		}
 
 		// vertexBuffer_PRE will be created on demand later!
@@ -869,7 +873,7 @@ namespace wiScene
 			desc.ByteWidth = desc.StructureByteStride * (uint32_t)subsets.size();
 			success = device->CreateBuffer(&desc, nullptr, &subsetBuffer);
 			assert(success);
-	}
+		}
 	}
 	void MeshComponent::WriteShaderMesh(ShaderMesh* dest) const
 	{
@@ -1594,7 +1598,7 @@ namespace wiScene
 			{
 				GPUQueryHeapDesc desc;
 				desc.type = GPU_QUERY_TYPE_OCCLUSION_BINARY;
-				desc.queryCount = 4096;
+				desc.queryCount = 5120; // 4096;
 				for (int i = 0; i < arraysize(queryHeap); ++i)
 				{
 					bool success = wiRenderer::GetDevice()->CreateQueryHeap(&desc, &queryHeap[i]);
@@ -2417,6 +2421,8 @@ OPTICK_EVENT();
 
 #ifdef GGREDUCED
 				bool bCulled = false;
+			        bool bResetKeys = false;
+			        if (animation.updateonce) bResetKeys = true;
 				//PE: Also respect animation.updateonce
 				if (bEnable30FpsAnimations && animation.updateonce == false)
 				{
@@ -2497,7 +2503,8 @@ OPTICK_EVENT();
 							sampler.backwards_compatibility_data.keyframe_times.clear();
 							sampler.backwards_compatibility_data.keyframe_data.clear();
 						}
-						const AnimationDataComponent* animationdata = animation_datas.GetComponent(sampler.data);
+				                //const AnimationDataComponent* animationdata = animation_datas.GetComponent(sampler.data);
+				                AnimationDataComponent* animationdata = animation_datas.GetComponent(sampler.data);
 						if (animationdata == nullptr)
 						{
 							continue;
@@ -2505,11 +2512,14 @@ OPTICK_EVENT();
 
 						int keyLeft = 0;
 						int keyRight = 0;
+				                if(bResetKeys)
+					            animationdata->prevKeyRight = 0;
 
 						if (animationdata->keyframe_times.back() < animation.timer)
 						{
 							// Rightmost keyframe is already outside animation, so just snap to last keyframe:
 							keyLeft = keyRight = (int)animationdata->keyframe_times.size() - 1;
+					                animationdata->prevKeyRight = 0;
 						}
 						else
 						{
@@ -2522,6 +2532,9 @@ OPTICK_EVENT();
 								if (animation.timer > animation.end) fAnimTimeEnd = animation.end;
 							}
 #endif
+					                 keyRight = animationdata->prevKeyRight;
+					                 if (animationdata->keyframe_times[keyRight] >= fAnimTimeEnd)
+						               keyRight = 0;
 
 							// Search for the right keyframe (greater/equal to anim time):
 							while (animationdata->keyframe_times[keyRight++] < fAnimTimeEnd) {}
@@ -2529,6 +2542,8 @@ OPTICK_EVENT();
 
 							// Left keyframe is just near right:
 							keyLeft = std::max(0, keyRight - 1);
+					animationdata->prevKeyRight = keyLeft;
+
 						}
 
 #ifdef GGREDUCED
@@ -3572,14 +3587,14 @@ OPTICK_EVENT();
 
 #ifdef GGREDUCED
 			//PE: LOD
-			object.SetRenderLOD(false);
-			if (object.IsLOD())
-			{
-				if (object.GetCameraDistance() > object.GetLodDistance())
-				{
-					object.SetRenderLOD(true);
-				}
-			}
+			//object.SetRenderLOD(false);
+			//if (object.IsLOD())
+			//{
+			//	if (object.GetCameraDistance() > object.GetLodDistance())
+			//	{
+			//		object.SetRenderLOD(true);
+			//	}
+			//}
 #endif
 			// Update occlusion culling status:
 			if (!wiRenderer::GetFreezeCullingCameraEnabled())
@@ -3631,7 +3646,8 @@ OPTICK_EVENT();
 				if (object.mesh_index >= 0)
 				{
 					//const MeshComponent& mesh = meshes[object.mesh_index];
-					const MeshComponent* mesh = &meshes[object.mesh_index];
+
+					MeshComponent* mesh = &meshes[object.mesh_index]; //PE: NEWLOD
 					XMMATRIX W = XMLoadFloat4x4(&transform.world);
 					aabb = mesh->aabb.transform(W);
 
@@ -3652,7 +3668,46 @@ OPTICK_EVENT();
 						}
 					}
 
-					for (auto& subset : mesh->subsets)
+					//PE: NEWLOD select lod object.
+					if (mesh->lodlevels > 0)
+					{
+						extern float fLODMultiplier;
+						float length_between_lod = 200.0f * fLODMultiplier;
+						float dist = object.GetCameraDistance();
+						int active_lod = object.forcelod;
+						if (object.forcelod == 0)
+						{
+							if (mesh->subsets.size() > 1 && mesh->lodlevels >= 1 && dist > (length_between_lod * 2))
+								active_lod = 1;
+							if (mesh->subsets.size() > 2 && mesh->lodlevels >= 2 && dist > (length_between_lod * 3))
+								active_lod = 2;
+							if (mesh->subsets.size() > 3 && mesh->lodlevels >= 3 && dist > (length_between_lod * 4))
+								active_lod = 3;
+						}
+						object.activelod = active_lod;
+
+						int count = 0;
+						if (mesh->activelodlevels)
+						{
+							for (auto& subset : mesh->subsets)
+							{
+								subset.active = true;
+							}
+							mesh->activelodlevels = false;
+						}
+						else
+						{
+							for (auto& subset : mesh->subsets)
+							{
+								if (count++ == active_lod)
+									subset.active = true;
+								else
+									subset.active = false;
+							}
+						}
+					}
+					auto& subset = mesh->subsets[0]; //PE: Always use subset[0] for material.
+					//for (auto& subset : mesh->subsets)
 					{
 						const MaterialComponent* material = materials.GetComponent(subset.materialID);
 
@@ -4079,6 +4134,7 @@ OPTICK_EVENT();
 			force.range_global = force.range_local * std::max(XMVectorGetX(S), std::max(XMVectorGetY(S), XMVectorGetZ(S)));
 		});
 	}
+	static uint32_t iLightcounter = 0;
 	void Scene::RunLightUpdateSystem(wiJobSystem::context& ctx)
 	{
 #ifdef GGREDUCED
@@ -4087,10 +4143,25 @@ OPTICK_EVENT();
 #endif
 #endif
 		assert(lights.GetCount() == aabb_lights.GetCount());
+		iLightcounter++;
 
 		wiJobSystem::Dispatch(ctx, (uint32_t)lights.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			LightComponent& light = lights[args.jobIndex];
+			//light.bNotRenderedInThisframe = false;
+			//if (light.type == LightComponent::POINT)
+			//{
+			//	bool shadow = light.IsCastingShadow() && !light.IsStatic();
+			//	if (shadow)
+			//	{
+			//		if ((iLightcounter + args.jobIndex) % 10 != 0)
+			//		{
+			//			light.bNotRenderedInThisframe = true;
+			//			//return;
+			//		}
+			//	}
+			//}
+
 			Entity entity = lights.GetEntity(args.jobIndex);
 			const TransformComponent& transform = *transforms.GetComponent(entity);
 			AABB& aabb = aabb_lights[args.jobIndex];
@@ -4477,8 +4548,20 @@ OPTICK_EVENT();
 				const ArmatureComponent* armature = mesh.IsSkinned() ? scene.armatures.GetComponent(mesh.armatureID) : nullptr;
 
 				int subsetCounter = 0;
+				int count = 0;
+				int target_lod = 0;
+
+				if (bRaycastLowestLOD)
+					target_lod = mesh.lodlevels;
+
 				for (auto& subset : mesh.subsets)
 				{
+					if (count++ != target_lod) //PE: Always uselowest lod.
+						continue;
+
+					//if (!subset.active)
+					//	continue;
+
 					for (size_t i = 0; i < subset.indexCount; i += 3)
 					{
 						const uint32_t i0 = mesh.indices[subset.indexOffset + i + 0];
@@ -4620,8 +4703,20 @@ OPTICK_EVENT();
 				const ArmatureComponent* armature = mesh.IsSkinned() ? scene.armatures.GetComponent(mesh.armatureID) : nullptr;
 
 				int subsetCounter = 0;
+				int count = 0;
+				int target_lod = 0;
+
+				if (bRaycastLowestLOD)
+					target_lod = mesh.lodlevels;
+
 				for (auto& subset : mesh.subsets)
 				{
+					if (count++ != target_lod) //PE: Always uselowest lod.
+						continue;
+
+					//if (!subset.active)
+					//	continue;
+
 					for (size_t i = 0; i < subset.indexCount; i += 3)
 					{
 						const uint32_t i0 = mesh.indices[subset.indexOffset + i + 0];
@@ -4830,8 +4925,21 @@ OPTICK_EVENT();
 				const ArmatureComponent* armature = mesh.IsSkinned() ? scene.armatures.GetComponent(mesh.armatureID) : nullptr;
 
 				int subsetCounter = 0;
+				int count = 0;
+
+				int target_lod = 0;
+
+				if(bRaycastLowestLOD)
+					target_lod = mesh.lodlevels;
+
 				for (auto& subset : mesh.subsets)
 				{
+					if (count++ != target_lod) //PE: Always uselowest lod.
+						continue;
+
+					//if (!subset.active)
+					//	continue;
+
 					for (size_t i = 0; i < subset.indexCount; i += 3)
 					{
 						const uint32_t i0 = mesh.indices[subset.indexOffset + i + 0];
@@ -5060,3 +5168,4 @@ OPTICK_EVENT();
 	}
 
 }
+

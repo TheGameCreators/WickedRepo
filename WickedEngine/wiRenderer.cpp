@@ -58,6 +58,11 @@ float fLODMultiplier = 1.0f;
 uint32_t iCulledAnimations = 0;
 bool bEnable30FpsAnimations = false;
 bool bShadowsInFrontTakesPriority = false;
+bool bShadowsLowestLOD = false;
+bool bProbesLowestLOD = false;
+bool bRaycastLowestLOD = false;
+bool bHideWeapons = false;
+bool bReflectionsLowestLOD = false;
 //bool bTmpTesting;
 #else
 #ifdef GGREDUCED
@@ -81,6 +86,12 @@ extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
 extern bool bShadowsInFrontTakesPriority;
+
+extern bool bShadowsLowestLOD;
+extern bool bProbesLowestLOD;
+extern bool bRaycastLowestLOD;
+extern bool bHideWeapons;
+extern bool bReflectionsLowestLOD;
 //extern bool bTmpTesting;
 
 #endif
@@ -416,21 +427,24 @@ struct RenderBatch
 	uint32_t instance;
 	float distance;
 	bool blod;
-
+	//PE: NEWLOD
+	uint32_t active_lod;
 #ifdef GGREDUCED
 	//PE: Do not add distance , added in special sort.
 	//PE: Keep LODs in own batches (as no textures needed, fewer state changes).
-	inline void Create(size_t meshIndex, size_t instanceIndex, float _distance, bool bLOD = false)
+	inline void Create(size_t meshIndex, size_t instanceIndex, float _distance, bool bLOD = false, uint32_t activelod = 0)
 	{
 		hash = 0;
 		assert(meshIndex < 0x00FFFFFF);
 		hash |= (uint32_t)(meshIndex & 0x00FFFFFF);
+		hash |= (uint32_t)(activelod & 0x0F) << 24;
 		if(bLOD)
 			hash |= (uint32_t)(0x80000000);
 
 		instance = (uint32_t)instanceIndex;
 		distance = _distance;
 		blod = bLOD;
+		active_lod = activelod;
 	}
 
 	inline bool GetLOD() const
@@ -3133,7 +3147,8 @@ void RenderMeshes(
 			uint16_t padding;
 #endif
 			AABB aabb;
-			bool bLOD;
+			//bool bLOD;
+			uint32_t active_lod;
 		};
 		InstancedBatch* instancedBatchArray = nullptr;
 		int instancedBatchCount = 0;
@@ -3141,13 +3156,15 @@ void RenderMeshes(
 		// The following loop is writing the instancing batches to a GPUBuffer:
 		size_t prevMeshIndex = ~0;
 		uint8_t prevUserStencilRefOverride = 0;
-		bool prevBLOD = 0;
+		//bool prevBLOD = 0;
+		uint32_t prevActiveLOD = 9999999;
 		uint32_t instanceCount = 0;
 		for (uint32_t batchID = 0; batchID < renderQueue.batchCount; ++batchID) // Do not break out of this loop!
 		{
 			const RenderBatch& batch = renderQueue.batchArray[batchID];
 			const uint32_t meshIndex = batch.GetMeshIndex();
-			const bool bLOD = batch.GetLOD(); //PE: LOD
+			//const bool bLOD = batch.GetLOD(); //PE: LOD
+			const uint32_t active_lod = batch.active_lod; //PE: NEWLOD
 			const uint32_t instanceIndex = batch.GetInstanceIndex();
 			const ObjectComponent& instance = vis.scene->objects[instanceIndex];
 			const AABB& instanceAABB = vis.scene->aabb_objects[instanceIndex];
@@ -3155,11 +3172,12 @@ void RenderMeshes(
 
 			// When we encounter a new mesh inside the global instance array, we begin a new InstancedBatch:
 			//PE: LOD mesh.IsRenderLOD() must have there own batches. STORE inside batch.
-			if (meshIndex != prevMeshIndex || userStencilRefOverride != prevUserStencilRefOverride || bLOD != prevBLOD)
+			if (meshIndex != prevMeshIndex || userStencilRefOverride != prevUserStencilRefOverride || prevActiveLOD != active_lod) //|| bLOD != prevBLOD
 			{
 				prevMeshIndex = meshIndex;
 				prevUserStencilRefOverride = userStencilRefOverride;
-				prevBLOD = bLOD;
+				//prevBLOD = bLOD;
+				prevActiveLOD = active_lod;
 
 				instancedBatchCount++;
 				InstancedBatch* instancedBatch = (InstancedBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(InstancedBatch));
@@ -3169,7 +3187,8 @@ void RenderMeshes(
 				instancedBatch->userStencilRefOverride = userStencilRefOverride;
 				instancedBatch->forceAlphatestForDithering = 0;
 				instancedBatch->aabb = AABB();
-				instancedBatch->bLOD = bLOD;
+				//instancedBatch->bLOD = bLOD;
+				instancedBatch->active_lod = active_lod;
 #ifdef GGREDUCED
 				if(batch.GetDistance()<16000)
 					instancedBatch->paddingnickedfordistance = batch.GetDistance();
@@ -3260,7 +3279,7 @@ void RenderMeshes(
 			}
 
 		}
-
+		const bool reflections = renderTypeFlags & RENDERTYPE_REFLECTIONS;
 #ifdef GGREDUCED
 		// special mode that can render an object TWICE (special feature for weapons that have multiple meshes that need to carve out the depth buffer before being rendered properly)
 		for (int iDoubleRender = 0; iDoubleRender < 2; iDoubleRender++)
@@ -3371,28 +3390,49 @@ void RenderMeshes(
 				}
 
 				//PE: LOD
-				bool bIsLodMesh = false;
-				if (instancedBatch.bLOD)
-				{
-					bIsLodMesh = true;
-				}
+				//bool bIsLodMesh = false;
+				//if (instancedBatch.bLOD)
+				//{
+				//	bIsLodMesh = true;
+				//}
 
+				//instancedBatch.active_lod
+				uint32_t count = 0;
+				uint32_t setlodlevel = instancedBatch.active_lod;
+
+				//PE: Always use lowest lod for shadows.
+				if (bShadowsLowestLOD && (renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE))
+					setlodlevel = mesh.lodlevels;
+
+				//PE: Always lowest lod for probes.
+				if (bProbesLowestLOD && renderPass == RENDERPASS_ENVMAPCAPTURE)
+					setlodlevel = mesh.lodlevels;
+
+				if(bReflectionsLowestLOD && reflections)
+					setlodlevel = mesh.lodlevels;
+				
 				for (const MeshComponent::MeshSubset& subset : mesh.subsets)
 				{
-					//PE: Add subset.active (LOD control) , subset.shadow (shadow LOD) , subset.physics (physics LOD).
-					
-					if (subset.indexCount == 0)
+					if (count++ != setlodlevel) //PE: NEWLOD
+						continue;
+
+					if (subset.indexCount == 0) // !subset.active
 					{
 						continue;
 					}
 
+
 					const MaterialComponent& material = vis.scene->materials[subset.materialIndex]; //vis.
 					auto shaderType = material.shaderType;
-					if (bIsLodMesh) //PE: LOD
-					{
-						shaderType = MaterialComponent::SHADERTYPE_LOD;
-					}
+					//if (bIsLodMesh) //PE: LOD
+					//{
+					//	shaderType = MaterialComponent::SHADERTYPE_LOD;
+					//}
 
+					if (bHideWeapons && shaderType == MaterialComponent::SHADERTYPE_WEAPON)
+					{
+						continue;
+					}
 					bool subsetRenderable = renderTypeFlags & material.GetRenderTypes();
 					if (renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE)
 					{
@@ -3555,12 +3595,12 @@ void RenderMeshes(
 						//const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT];
 						const GPUResource* materialtextures[MaterialComponent::TEXTURESLOT_COUNT] = { nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr };
 
-						if ((renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE) || (bIsLodMesh && material.GetAlphaRef() < 1.0f))
+						if ((renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE) ) //|| (bIsLodMesh && material.GetAlphaRef() < 1.0f)
 						{
 							//PE: Only basecolormap needed to alphaclip and transparent.
 							material.WriteTextures(materialtextures, 1);
 						}
-						else if(!bIsLodMesh)
+						else //if(!bIsLodMesh)
 						{
 							material.WriteTextures(materialtextures, arraysize(materialtextures));
 						}
@@ -3766,74 +3806,77 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
 			LightComponent& lightcomponent = (LightComponent & ) vis.scene->lights[args.jobIndex];
 
-			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
+			if ((aabb.layerMask & vis.layerMask))
 			{
-				// Local stream compaction:
-				//	(also compute light distance for shadow priority sorting)
-				assert(args.jobIndex < 0xFFFF);
-				group_list[group_count].index = (uint16_t)args.jobIndex;
-				float distance = 0;
-				if (lightcomponent.type != LightComponent::DIRECTIONAL)
+				if (vis.frustum.CheckBoxFast(aabb))
 				{
-#ifdef GGREDUCED
-					//bTmpTesting
-					if (!lightcomponent.bPrev_In_Frustom)
+					// Local stream compaction:
+					//	(also compute light distance for shadow priority sorting)
+					assert(args.jobIndex < 0xFFFF);
+					group_list[group_count].index = (uint16_t)args.jobIndex;
+					float distance = 0;
+					if (lightcomponent.type != LightComponent::DIRECTIONAL)
 					{
-						//PE: just got into frustom, recheck occlusion.
-						lightcomponent.history |= 1;
-					}
+#ifdef GGREDUCED
+						//bTmpTesting
+						if (!lightcomponent.bPrev_In_Frustom)
+						{
+							//PE: just got into frustom, recheck occlusion.
+							lightcomponent.history |= 1;
+						}
 #endif
 
-					distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
+						distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
 #ifdef GGREDUCED
-					//PE: Before we allow more shadow lights, lets try this to stop more shadow popping.
-					if (bShadowsInFrontTakesPriority)
-					{
-						AABB aabb2;
-						XMFLOAT3 ext = aabb.getHalfWidth();
-						ext.x++;
-						ext.y++;
-						ext.z++;
-						XMFLOAT3 pos = aabb.getCenter();
-						const float expand = 0.5f;
-						aabb2._min = pos;
-						aabb2._max = pos;
-						aabb2._min.x -= ext.x * expand;
-						aabb2._min.y -= ext.y * expand;
-						aabb2._min.z -= ext.z * expand;
-						aabb2._max.x += ext.x * expand;
-						aabb2._max.y += ext.y * expand;
-						aabb2._max.z += ext.z * expand;
+						//PE: Before we allow more shadow lights, lets try this to stop more shadow popping.
+						if (bShadowsInFrontTakesPriority)
+						{
+							AABB aabb2;
+							XMFLOAT3 ext = aabb.getHalfWidth();
+							ext.x++;
+							ext.y++;
+							ext.z++;
+							XMFLOAT3 pos = aabb.getCenter();
+							const float expand = 0.5f;
+							aabb2._min = pos;
+							aabb2._max = pos;
+							aabb2._min.x -= ext.x * expand;
+							aabb2._min.y -= ext.y * expand;
+							aabb2._min.z -= ext.z * expand;
+							aabb2._max.x += ext.x * expand;
+							aabb2._max.y += ext.y * expand;
+							aabb2._max.z += ext.z * expand;
 
-						if (vis.frustum.CheckBoxFast(aabb2))
-						{
-							//PE: Center in front, give priority to shadows.
-							distance *= 0.4f;
+							if (vis.frustum.CheckBoxFast(aabb2))
+							{
+								//PE: Center in front, give priority to shadows.
+								distance *= 0.4f;
+							}
+							else
+							{
+								//PE: Center of box behind us change distance to give lower priority for shadow rendering.
+								distance *= 1.6f;
+							}
 						}
-						else
-						{
-							//PE: Center of box behind us change distance to give lower priority for shadow rendering.
-							distance *= 1.6f;
-						}
+#endif
 					}
+#ifdef GGREDUCED
+					lightcomponent.bPrev_In_Frustom = true;
 #endif
+					group_list[group_count].distance = uint16_t(distance * 10);
+					group_count++;
+					if (lightcomponent.IsVolumetricsEnabled())
+					{
+						vis.volumetriclight_request.store(true);
+					}
 				}
 #ifdef GGREDUCED
-				lightcomponent.bPrev_In_Frustom = true;
-#endif
-				group_list[group_count].distance = uint16_t(distance * 10);
-				group_count++;
-				if (lightcomponent.IsVolumetricsEnabled())
+				else
 				{
-					vis.volumetriclight_request.store(true);
+					lightcomponent.bPrev_In_Frustom = false;
 				}
-			}
-#ifdef GGREDUCED
-			else
-			{
-				lightcomponent.bPrev_In_Frustom = false;
-			}
 #endif
+			}
 			// Global stream compaction:
 			if (args.isLastJobInGroup && group_count > 0)
 			{
@@ -4964,6 +5007,8 @@ void UpdateRenderData(
 				int j = 0;
 				for (auto& x : mesh.subsets)
 				{
+					if (!x.active)
+						continue;
 					ShaderMeshSubset& shadersubset = subsetarray[j++];
 					shadersubset.indexOffset = x.indexOffset;
 					shadersubset.indexCount = x.indexCount;
@@ -6449,12 +6494,15 @@ void DrawShadowmaps(
 				if (!cam_frustum.Intersects(shcam.boundingfrustum))
 					break;
 
+				SPHERE boundingsphere = SPHERE(light.position, light.GetRange());
+				boundingsphere.radius *= 1.5f;
+
 				RenderQueue renderQueue;
 				bool transparentShadowsRequested = false;
 				for (size_t i = 0; i < vis.scene->aabb_objects.GetCount(); ++i)
 				{
 					const AABB& aabb = vis.scene->aabb_objects[i];
-					if ((aabb.layerMask & vis.layerMask) && shcam.frustum.CheckBoxFast(aabb))
+					if ((aabb.layerMask & vis.layerMask) && shcam.frustum.CheckBoxFast(aabb) && boundingsphere.intersects(aabb) )
 					{
 						const ObjectComponent& object = vis.scene->objects[i];
 						if (object.IsRenderable() && object.IsCastingShadow())
@@ -6657,6 +6705,7 @@ void DrawScene(
 	//PE: https://github.com/turanszkij/WickedEngine/commit/54d11f1e9138813b7815e9d523f2e7b8fac523a2
 	const bool occlusion = (flags & DRAWSCENE_OCCLUSIONCULLING) && GetOcclusionCullingEnabled();
 	const bool ocean = flags & DRAWSCENE_OCEAN;
+	const bool reflections = flags & DRAWSCENE_REFLECTIONS;
 
 	device->EventBegin("DrawScene", cmd);
 	device->BindShadingRate(SHADING_RATE_1X1, cmd);
@@ -6735,7 +6784,10 @@ void DrawScene(
 		renderTypeFlags |= RENDERTYPE_TRANSPARENT;
 		renderTypeFlags |= RENDERTYPE_WATER;
 	}
-
+	if (reflections)
+	{
+		renderTypeFlags |= RENDERTYPE_REFLECTIONS;
+	}
 	if (IsWireRender())
 	{
 		renderTypeFlags = RENDERTYPE_ALL;
@@ -6772,7 +6824,7 @@ void DrawScene(
 			//batch->Create(meshIndex, instanceIndex, distance);
 
 			//PE: LOD objects that are in LOD mode need there own batches.
-			batch->Create(object.mesh_index, instanceIndex, distance, object.IsRenderLOD());
+			batch->Create(object.mesh_index, instanceIndex, distance, object.IsRenderLOD(),object.activelod);
 			renderQueue.add(batch);
 		}
 	}
@@ -8529,7 +8581,7 @@ void RefreshImpostors(const Scene& scene, CommandList cmd)
 
 				for (auto& subset : mesh.subsets)
 				{
-					if (subset.indexCount == 0)
+					if (subset.indexCount == 0 || !subset.active)
 					{
 						continue;
 					}
