@@ -812,7 +812,7 @@ namespace wiScene
 			SubresourceData InitData;
 			InitData.pSysMem = vertex_subsets.data();
 			device->CreateBuffer(&bd, &InitData, &vertexBuffer_SUB);
-			device->SetName(&vertexBuffer_SUB, "vertexBuffer_SUB")vertexBuffer_SUB;
+			device->SetName(&vertexBuffer_SUB, "vertexBuffer_SUB");// vertexBuffer_SUB;
 		}
 
 		// vertexBuffer_PRE will be created on demand later!
