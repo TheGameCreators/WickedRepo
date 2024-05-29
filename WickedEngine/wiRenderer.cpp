@@ -4853,13 +4853,16 @@ void UpdateRenderData(
 #ifdef GGREDUCED
 					#ifdef DELAYEDSHADOWS
 					//PE: Even out load.
-					if (bUpdateCascade[1] && bUpdateCascade[2] && bUpdateCascade[3])
+					if (g_bDelayedShadows)
 					{
-						bUpdateCascade[3] = false;
-					}
-					else if (!bUpdateCascade[1] && !bUpdateCascade[2] && !bUpdateCascade[3])
-					{
-						bUpdateCascade[3] = true;
+						if (bUpdateCascade[1] && bUpdateCascade[2] && bUpdateCascade[3])
+						{
+							bUpdateCascade[3] = false;
+						}
+						else if (!bUpdateCascade[1] && !bUpdateCascade[2] && !bUpdateCascade[3])
+						{
+							bUpdateCascade[3] = true;
+						}
 					}
 					#endif
 					for( uint32_t i = 0; i < CASCADE_COUNT; i++ )
