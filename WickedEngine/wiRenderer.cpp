@@ -1074,6 +1074,7 @@ enum DEBUGRENDERING
 	DEBUGRENDERING_FORCEFIELD_POINT,
 	DEBUGRENDERING_FORCEFIELD_PLANE,
 	DEBUGRENDERING_RAYTRACE_BVH,
+	DEBUGRENDERING_LINES2,
 	DEBUGRENDERING_COUNT
 };
 PipelineState PSO_debug[DEBUGRENDERING_COUNT];
@@ -2115,6 +2116,16 @@ void LoadShaders()
 			desc.ps = &shaders[PSTYPE_VERTEXCOLOR];
 			desc.il = &inputLayouts[ILTYPE_VERTEXCOLOR];
 			desc.dss = &depthStencils[DSSTYPE_XRAY];
+			desc.rs = &rasterizers[RSTYPE_WIRE_DOUBLESIDED_SMOOTH];
+			desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+			desc.pt = LINELIST;
+			break;
+		case DEBUGRENDERING_LINES2:
+			desc.vs = &shaders[VSTYPE_VERTEXCOLOR];
+			desc.ps = &shaders[PSTYPE_VERTEXCOLOR];
+			desc.il = &inputLayouts[ILTYPE_VERTEXCOLOR];
+			//desc.dss = &depthStencils[DSSTYPE_XRAY];
+			desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
 			desc.rs = &rasterizers[RSTYPE_WIRE_DOUBLESIDED_SMOOTH];
 			desc.bs = &blendStates[BSTYPE_TRANSPARENT];
 			desc.pt = LINELIST;
@@ -3955,6 +3966,11 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 						//PE: If it just got into frustum, recheck occlusion, this makes occluded objects instantly appear.
 						object.occlusionHistory |= 1;
 					}
+					if (apparentSize >= 0.04f)
+					{
+						//PE: NEWTEST Some large object got a problem, disable them for now and only use them as occluders.
+						object.occlusionHistory |= 1;
+					}
 					object.SetCulled(false);
 				}
 				if (vis.flags & Visibility::ALLOW_REQUEST_REFLECTION)
@@ -4175,11 +4191,23 @@ void UpdatePerFrameData(
 				if (!object.IsRenderable())
 					continue;
 				if (object.IsCulled())
-					continue;
-				//PE: Dont occlude nearby object.
-				if (object.GetCameraDistance() < 1000) // bTmpTesting
 				{
 					object.occlusionHistory |= 1;
+					object.occlusionQueries[scene.queryheap_idx] = -1;
+					continue;
+				}
+				//PE: NEWTEST transparent object can have problems disable for now.
+				if (object.GetRenderTypes() & RENDERTYPE_TRANSPARENT)
+				{
+					object.occlusionHistory |= 1;
+					object.occlusionQueries[scene.queryheap_idx] = -1;
+					continue;
+				}
+				//PE: Dont occlude nearby object.
+				if (object.GetCameraDistance() < 1500) // bTmpTesting newtest
+				{
+					object.occlusionHistory |= 1;
+					object.occlusionQueries[scene.queryheap_idx] = -1;
 					continue;
 				}
 
@@ -5426,7 +5454,7 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 
 	auto range = wiProfiler::BeginRangeGPU("Occlusion Culling Render", cmd);
 
-	if (!vis.visibleObjects.empty())
+	if (!vis.visibleObjects.empty() || bEnableTerrainChunkCulling)
 	{
 		device->EventBegin("Occlusion Culling Render", cmd);
 
@@ -5471,7 +5499,7 @@ void OcclusionCulling_Render(const CameraComponent& camera_previous, const Visib
 #ifdef GGREDUCED
 					XMMATRIX transform;
 					const float expand = 2.5f;
-					if (1) //bTmpTesting
+					if (1) //bTmpTesting //PE: NewTest
 					{
 						//PE: A little expanding was needed, mainly when one size is 0.
 						XMFLOAT3 ext = aabb.getHalfWidth();
@@ -6801,9 +6829,6 @@ void DrawScene(
 	{
 		ObjectComponent& object = (ObjectComponent&)vis.scene->objects[instanceIndex]; // GGREDUCED was const
 
-		if (occlusion && object.IsOccluded() && bEnableObjectCulling)
-			continue;
-
 		if (object.IsRenderable() && (object.GetRenderTypes() & renderTypeFlags))
 		{
 			float distance = wiMath::Distance(vis.camera->Eye, object.center); // GGREDUCED was const
@@ -6817,6 +6842,11 @@ void DrawScene(
 			{
 				object.SetCameraDistance(distance);
 			}
+
+			//PE: We need new distance update so moved here.
+			if (occlusion && object.IsOccluded() && bEnableObjectCulling)
+				continue;
+
 			// LB: introduce a distance bias so that two transparent objects
 			// sharing the same space can set a priority of one over the other
 			distance = distance + object.GetRenderOrderBiasDistance();
@@ -6884,7 +6914,7 @@ void DrawDebugWorld(
 	static GPUBuffer wirecubeIB;
 
 #ifdef GGREDUCED
-	if (renderableBoxes.empty() && renderableCapsules.empty() && !debugEnvProbes && !debugBoneLines) //PE: We only use these, so no need to BindCommonResources... if we have nothing.
+	if (renderableLines.empty() && renderableBoxes.empty() && renderableCapsules.empty() && !debugEnvProbes && !debugBoneLines) //PE: We only use these, so no need to BindCommonResources... if we have nothing.
 		return;
 #endif
 
@@ -7192,7 +7222,8 @@ void DrawDebugWorld(
 	{
 		device->EventBegin("DebugLines", cmd);
 
-		device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES], cmd);
+		//device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES], cmd);
+		device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES2], cmd);
 
 		MiscCB sb;
 		XMStoreFloat4x4(&sb.g_xTransform, camera.GetViewProjection());

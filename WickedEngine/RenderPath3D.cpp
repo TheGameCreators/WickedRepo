@@ -1417,6 +1417,9 @@ void RenderPath3D::Render(int mode) const
 
 		});
 
+	//PE: I get a crash when generating mip maps. ( ProcessDeferredMipGenRequests ).
+	wiJobSystem::Wait(ctx);
+
 	RenderPath2D::Render( mode );
 
 	wiJobSystem::Wait(ctx);
