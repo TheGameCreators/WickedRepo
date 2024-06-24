@@ -7222,8 +7222,8 @@ void DrawDebugWorld(
 	{
 		device->EventBegin("DebugLines", cmd);
 
-		//device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES], cmd);
-		device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES2], cmd);
+		device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES], cmd);
+		//device->BindPipelineState(&PSO_debug[DEBUGRENDERING_LINES2], cmd);
 
 		MiscCB sb;
 		XMStoreFloat4x4(&sb.g_xTransform, camera.GetViewProjection());
