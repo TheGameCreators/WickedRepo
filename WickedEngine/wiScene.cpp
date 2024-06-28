@@ -2570,11 +2570,11 @@ OPTICK_EVENT();
 						if (channel.path == AnimationComponent::AnimationChannel::Path::WEIGHTS)
 						{
 							ObjectComponent* object = objects.GetComponent(channel.target);
-							assert(object != nullptr);
+							//assert(object != nullptr); GGREDUCED stops debug!
 							if (object == nullptr)
 								continue;
 							target_mesh = meshes.GetComponent(object->meshID);
-							assert(target_mesh != nullptr);
+							//assert(target_mesh != nullptr); GGREDUCED stops debug!
 							if (target_mesh == nullptr)
 								continue;
 							animation.morph_weights_temp.resize(target_mesh->targets.size());
@@ -2582,7 +2582,7 @@ OPTICK_EVENT();
 						else
 						{
 							target_transform = transforms.GetComponent(channel.target);
-							assert(target_transform != nullptr);
+							//assert(target_transform != nullptr); GGREDUCED stops debug!
 							if (target_transform == nullptr)
 								continue;
 							transform = *target_transform;
