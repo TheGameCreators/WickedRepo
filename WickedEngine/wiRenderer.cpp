@@ -4298,6 +4298,19 @@ void UpdatePerFrameData(
 						if (bEnablePointShadowCulling)
 						{
 							const AABB& aabb = vis.scene->aabb_lights[lightIndex];
+
+							XMFLOAT3 aabbCenter = aabb.getCenter();
+							XMVECTOR lightcenter = XMLoadFloat3(&aabbCenter);
+							XMVECTOR vectorSub = XMVectorSubtract(vis.camera->GetEye(), lightcenter);
+							XMVECTOR length = XMVector3LengthEst(vectorSub);
+							float Distance = 0.0f;
+							XMStoreFloat(&Distance, length);
+							if (fabs(Distance) < 1200)
+							{
+								light.writeQuery = 0;
+								light.history |= 1;
+								continue;
+							}
 							if (aabb.intersects(vis.camera->Eye))
 							{
 								//Camera inside light , make it visible.
@@ -4345,6 +4358,10 @@ void UpdatePerFrameData(
 	{
 		scene.BVH.Update(scene);
 	}
+
+
+	frameCB.g_xFrame_Voxel_Steps = vis.scene->weather.pp_voxel_steps;
+	frameCB.g_xFrame_PP_Alpha = vis.scene->weather.pp_alpha;
 
 	// Update CPU-side frame constant buffer:
 	frameCB.g_xFrame_ConstantOne = 1;
@@ -4516,6 +4533,18 @@ void UpdatePerFrameData(
 	if (vis.scene->weather.IsHeightFog())
 	{
 		frameCB.g_xFrame_Options |= OPTION_BIT_HEIGHT_FOG;
+	}
+	if (vis.scene->weather.IsPPSnowEnabled())
+	{
+		frameCB.g_xFrame_Options |= OPTION_BIT_SNOW_ENABLED;
+	}
+	if (vis.scene->weather.IsPPDustEnabled())
+	{
+		frameCB.g_xFrame_Options |= OPTION_BIT_DUST_ENABLED;
+	}
+	if (vis.scene->weather.IsPPRainEnabled())
+	{
+		frameCB.g_xFrame_Options |= OPTION_BIT_RAIN_ENABLED;
 	}
 	if (vis.scene->weather.IsOceanEnabled())
 	{
@@ -6592,7 +6621,7 @@ void DrawShadowmaps(
 				uint32_t slice = shadowCounter_Cube;
 				shadowCounter_Cube += 1;
 
-				if (light.history == 0 && bEnablePointShadowCulling)
+				if (light.history == 0 && light.delayed_shadow == 0 && bEnablePointShadowCulling)
 				{
 					iCulledPointShadows++;
 					break;
@@ -13568,7 +13597,9 @@ void Postprocess_Tonemap(
 	const Texture* texture_colorgradinglut,
 	const Texture* texture_distortion,
 	const Texture* texture_luminance,
-	float eyeadaptionkey
+	float eyeadaptionkey,
+	const wiGraphics::Texture* lineardepth
+
 )
 {
 	device->EventBegin("Postprocess_Tonemap", cmd);
@@ -13588,7 +13619,9 @@ void Postprocess_Tonemap(
 	cb.tonemap_eyeadaption = texture_luminance == nullptr ? 0.0f : 1.0f;
 	cb.tonemap_distortion = texture_distortion == nullptr ? 0.0f : 1.0f;
 	cb.tonemap_eyeadaptionkey = eyeadaptionkey;
-
+	//PE: xPPParams1.z , xPPParams1.w free.
+	//PE: xPPParams1.z = effect.
+	//PE: xPPParams1.w = timer
 	assert(texture_colorgradinglut == nullptr || texture_colorgradinglut->desc.type == TextureDesc::TEXTURE_3D); // This must be a 3D lut
 
 	if (device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_BINDLESS_DESCRIPTORS))
@@ -13612,6 +13645,8 @@ void Postprocess_Tonemap(
 		device->BindResource(CS, &input, TEXSLOT_ONDEMAND0, cmd);
 		device->BindResource(CS, texture_luminance, TEXSLOT_ONDEMAND1, cmd);
 		device->BindResource(CS, texture_distortion, TEXSLOT_ONDEMAND2, cmd);
+		if(lineardepth)
+			device->BindResource(CS, lineardepth, TEXSLOT_LINEARDEPTH, cmd);
 
 		if (texture_colorgradinglut != nullptr)
 		{

@@ -13,6 +13,8 @@ extern bool g_bNoTerrainRender;
 //const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
 extern float maxApparentSize; // = 0.000002f;
 
+wiSpinLock bindresourcesLock;
+
 #define REMOVE_WICKED_PARTICLE
 #define REMOVE_WATER_RIPPLE
 #define REMOVE_TEMPORAL_AA
@@ -98,6 +100,9 @@ void RenderPath3D::ResizeBuffers()
 
 	{
 		TextureDesc desc;
+		//PE: BIND_UNORDERED_ACCESS do not work here if getMSAASampleCount > 1
+		//PE: Only way to fix HDR postprossing is to create a rtPostprocess_HDR[1] we can use instead (for ping/pong).
+
 		desc.BindFlags = BIND_RENDER_TARGET | BIND_SHADER_RESOURCE;
 		desc.Width = internalResolution.x;
 		desc.Height = internalResolution.y;
@@ -274,8 +279,10 @@ void RenderPath3D::ResizeBuffers()
 		desc.Format = FORMAT_R11G11B10_FLOAT;
 		desc.Width = internalResolution.x;
 		desc.Height = internalResolution.y;
-		device->CreateTexture(&desc, nullptr, &rtPostprocess_HDR);
-		device->SetName(&rtPostprocess_HDR, "rtPostprocess_HDR");
+		device->CreateTexture(&desc, nullptr, &rtPostprocess_HDR[0]);
+		device->SetName(&rtPostprocess_HDR[0], "rtPostprocess_HDR[0]");
+		device->CreateTexture(&desc, nullptr, &rtPostprocess_HDR[1]);
+		device->SetName(&rtPostprocess_HDR[1], "rtPostprocess_HDR[1]");
 	}
 	{
 		TextureDesc desc;
@@ -1267,6 +1274,8 @@ void RenderPath3D::Render(int mode) const
 
 		auto range = wiProfiler::BeginRangeGPU("Opaque - Scene", cmd);
 
+		bindresourcesLock.lock();
+
 		#ifndef REMOVE_RAY_TRACED_SHADOW
 		if (wiRenderer::GetRaytracedShadowsEnabled() || wiRenderer::GetScreenSpaceShadowsEnabled())
 		{
@@ -1315,6 +1324,9 @@ void RenderPath3D::Render(int mode) const
 //#else
 		device->BindResource(PS, getSSREnabled() || getRaytracedReflectionEnabled() ? &rtSSR : wiTextureHelper::getTransparent(), TEXSLOT_RENDERPATH_SSR, cmd);
 //#endif
+
+		bindresourcesLock.unlock();
+
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_MAIN, cmd, drawscene_flags);
 		wiProfiler::EndRange(range); // Opaque Scene
 
@@ -1418,6 +1430,7 @@ void RenderPath3D::Render(int mode) const
 		});
 
 	//PE: I get a crash when generating mip maps. ( ProcessDeferredMipGenRequests ).
+	//wiJobSystem::WaitSleep(ctx,1); //PE: This just make everyting slow, Added wiSpinLock to see if that solve it.
 	wiJobSystem::Wait(ctx);
 
 	RenderPath2D::Render( mode );
@@ -1760,6 +1773,9 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 		auto range = wiProfiler::BeginRangeGPU("Transparent Scene", cmd);
 		device->EventBegin("Transparent Scene", cmd);
 
+		//PE: Binding to the same slot from 2 threads seams to crash. even if diffeerent cmd..
+		bindresourcesLock.lock();
+
 		device->BindResource(VS, &rtLinearDepth, TEXSLOT_LINEARDEPTH, cmd);
 
 		device->BindResource(PS, &tiledLightResources.entityTiles_Transparent, TEXSLOT_RENDERPATH_ENTITYTILES, cmd);
@@ -1769,6 +1785,8 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 #ifndef REMOVE_WATER_RIPPLE
 		device->BindResource(PS, &rtWaterRipple, TEXSLOT_RENDERPATH_WATERRIPPLES, cmd);
 #endif
+
+		bindresourcesLock.unlock();
 
 #ifdef GGREDUCED
 		auto particlerange = wiProfiler::BeginRangeGPU("Particles - Init Render", cmd);
@@ -1900,7 +1918,9 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 
 	const Texture* rt_first = nullptr; // not ping-ponged with read / write
 	const Texture* rt_read = GetGbuffer_Read(GBUFFER_COLOR);
-	const Texture* rt_write = &rtPostprocess_HDR;
+	//GetGbuffer_Read
+	const Texture* rt_write = &rtPostprocess_HDR[0];
+	const Texture* rt_write2 = &rtPostprocess_HDR[1];
 
 	// 1.) HDR post process chain
 	{
@@ -1934,8 +1954,11 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 				getDepthOfFieldStrength()
 			);
 			rt_first = nullptr;
-
+			if (rt_read == GetGbuffer_Read(GBUFFER_COLOR))
+				rt_read = rt_write2;
 			std::swap(rt_read, rt_write);
+			//rt_write2
+
 			device->UnbindResources(TEXSLOT_ONDEMAND0, 1, cmd);
 		}
 
@@ -1951,7 +1974,8 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 				getMotionBlurStrength()
 			);
 			rt_first = nullptr;
-
+			if (rt_read == GetGbuffer_Read(GBUFFER_COLOR))
+				rt_read = rt_write2;
 			std::swap(rt_read, rt_write);
 			device->UnbindResources(TEXSLOT_ONDEMAND0, 1, cmd);
 		}
@@ -1968,6 +1992,8 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 			);
 			rt_first = nullptr;
 
+			if (rt_read == GetGbuffer_Read(GBUFFER_COLOR))
+				rt_read = rt_write2;
 			std::swap(rt_read, rt_write);
 			device->UnbindResources(TEXSLOT_ONDEMAND0, 1, cmd);
 		}
@@ -1991,7 +2017,8 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 				getColorGradingEnabled() ? (scene->weather.colorGradingMap == nullptr ? nullptr : &scene->weather.colorGradingMap->texture) : nullptr,
 				getMSAASampleCount() > 1 ? &rtParticleDistortion_Resolved : &rtParticleDistortion,
 				getEyeAdaptionEnabled() ? wiRenderer::ComputeLuminance(luminanceResources, *GetGbuffer_Read(GBUFFER_COLOR), cmd, getEyeAdaptionRate()) : nullptr,
-				getEyeAdaptionKey()
+				getEyeAdaptionKey(),
+				&rtLinearDepth
 			);
 #else
 			wiRenderer::Postprocess_Tonemap(
@@ -2003,7 +2030,8 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 				getColorGradingEnabled() ? (scene->weather.colorGradingMap == nullptr ? nullptr : &scene->weather.colorGradingMap->texture) : nullptr,
 				nullptr,
 				getEyeAdaptionEnabled() ? wiRenderer::ComputeLuminance(luminanceResources, *GetGbuffer_Read(GBUFFER_COLOR), cmd, getEyeAdaptionRate()) : nullptr,
-				getEyeAdaptionKey()
+				getEyeAdaptionKey(),
+				&rtLinearDepth
 			);
 #endif
 #ifdef GGREDUCED
@@ -2020,7 +2048,8 @@ void RenderPath3D::RenderPostprocessChain(CommandList cmd) const
 				nullptr,
 				getMSAASampleCount() > 1 ? &rtParticleDistortion_Resolved : &rtParticleDistortion,
 				getEyeAdaptionEnabled() ? wiRenderer::ComputeLuminance(luminanceResources, *GetGbuffer_Read(GBUFFER_COLOR), cmd, getEyeAdaptionRate()) : nullptr,
-				getEyeAdaptionKey()
+				getEyeAdaptionKey(),
+				&rtLinearDepth
 			);
 		}
 #endif

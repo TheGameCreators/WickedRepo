@@ -3151,7 +3151,7 @@ void GraphicsDevice_DX11::BindViewports(uint32_t NumViewports, const Viewport* p
 //PE: When running with optimizing off , i never get the crash. so try to only disable optimizing for this function.
 //PE: @Lee Looks like i dont get the crash when not optimizing this function ? could you test if it also works for you.
 #ifdef GGREDUCED
-//#pragma optimize("", off)
+#pragma optimize("", off)
 #endif
 
 void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* resource, uint32_t slot, CommandList cmd, int subresource)
@@ -3185,35 +3185,43 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 			assert(internal_state->subresources_srv.size() > static_cast<size_t>(subresource) && "Invalid subresource!");
 			SRV = internal_state->subresources_srv[subresource].Get();
 		}
-
-		switch (stage)
+		try
 		{
-		case wiGraphics::VS:
-			deviceContexts[cmd]->VSSetShaderResources(slot, 1, &SRV);
-			break;
-		case wiGraphics::HS:
-			deviceContexts[cmd]->HSSetShaderResources(slot, 1, &SRV);
-			break;
-		case wiGraphics::DS:
-			deviceContexts[cmd]->DSSetShaderResources(slot, 1, &SRV);
-			break;
-		case wiGraphics::GS:
-			deviceContexts[cmd]->GSSetShaderResources(slot, 1, &SRV);
-			break;
-		case wiGraphics::PS:
-			//PE: Crash in here, was from reflection, moved to mainthread for testing (looks good).
-			deviceContexts[cmd]->PSSetShaderResources(slot, 1, &SRV);
-			break;
-		case wiGraphics::CS:
-			deviceContexts[cmd]->CSSetShaderResources(slot, 1, &SRV);
-			break;
-		default:
-			break;
+
+			switch (stage)
+			{
+			case wiGraphics::VS:
+				deviceContexts[cmd]->VSSetShaderResources(slot, 1, &SRV);
+				break;
+			case wiGraphics::HS:
+				deviceContexts[cmd]->HSSetShaderResources(slot, 1, &SRV);
+				break;
+			case wiGraphics::DS:
+				deviceContexts[cmd]->DSSetShaderResources(slot, 1, &SRV);
+				break;
+			case wiGraphics::GS:
+				deviceContexts[cmd]->GSSetShaderResources(slot, 1, &SRV);
+				break;
+			case wiGraphics::PS:
+				//PE: Crash in here, was from reflection, moved to mainthread for testing (looks good).
+				deviceContexts[cmd]->PSSetShaderResources(slot, 1, &SRV);
+				break;
+			case wiGraphics::CS:
+				deviceContexts[cmd]->CSSetShaderResources(slot, 1, &SRV);
+				break;
+			default:
+				break;
+			}
+
+		}
+		catch (...)
+		{
+			return;
 		}
 	}
 }
 #ifdef GGREDUCED
-//#pragma optimize("", on)
+#pragma optimize("", on)
 #endif
 
 void GraphicsDevice_DX11::BindResources(SHADERSTAGE stage, const GPUResource *const* resources, uint32_t slot, uint32_t count, CommandList cmd)

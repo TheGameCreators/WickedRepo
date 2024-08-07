@@ -114,7 +114,7 @@ public:
 	wiGraphics::Texture rtShadingRate; // UINT8 shading rate per tile
 	wiGraphics::Texture rtFSR[2]; // FSR upscaling result (full resolution LDR)
 
-	wiGraphics::Texture rtPostprocess_HDR; // ping-pong with main scene RT in HDR post-process chain
+	wiGraphics::Texture rtPostprocess_HDR[2]; // ping-pong with main scene RT in HDR post-process chain
 	wiGraphics::Texture rtPostprocess_LDR[2]; // ping-pong with itself in LDR post-process chain
 
 #ifdef GGREDUCED
