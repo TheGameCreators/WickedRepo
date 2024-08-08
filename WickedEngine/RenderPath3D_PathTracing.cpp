@@ -307,12 +307,12 @@ void RenderPath3D_PathTracing::Render( int mode ) const
 		}
 
 		wiRenderer::Postprocess_Tonemap(
-				denoiserResult.IsValid() ? denoiserResult : traceResult,
+			denoiserResult.IsValid() ? denoiserResult : traceResult,
 			rtPostprocess_LDR[0],
 			cmd,
 			getExposure(),
-				getDitherEnabled(),
-				getColorGradingEnabled() ? (scene->weather.colorGradingMap == nullptr ? nullptr : &scene->weather.colorGradingMap->texture) : nullptr
+			getDitherEnabled(),
+			getColorGradingEnabled() ? (scene->weather.colorGradingMap == nullptr ? nullptr : &scene->weather.colorGradingMap->texture) : nullptr
 		);
 
 		// GUI Background blurring:

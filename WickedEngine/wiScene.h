@@ -916,6 +916,7 @@ namespace wiScene
 		XMFLOAT3 right;
 		uint32_t writeQuery = 0;
 		uint32_t history = 1;
+		uint32_t delayed_shadow = 0;
 		bool bNotRenderedInThisframe = false;
 		bool bPrev_In_Frustom = true;
 
@@ -1192,8 +1193,20 @@ namespace wiScene
 			REALISTIC_SKY = 1 << 2,
 			VOLUMETRIC_CLOUDS = 1 << 3,
 			HEIGHT_FOG = 1 << 4,
+			PP_SNOW = 1 << 5,
+			PP_DUST = 1 << 6,
+			PP_RAIN = 1 << 7,
 		};
 		uint32_t _flags = EMPTY;
+
+		inline bool IsPPSnowEnabled() const { return _flags & PP_SNOW; }
+		inline bool IsPPDustEnabled() const { return _flags & PP_DUST; }
+		inline bool IsPPRainEnabled() const { return _flags & PP_RAIN; }
+		inline void SetPPSnowEnabled(bool value = true) { if (value) { _flags |= PP_SNOW; } else { _flags &= ~PP_SNOW; } }
+		inline void SetPPDustEnabled(bool value = true) { if (value) { _flags |= PP_DUST; } else { _flags &= ~PP_DUST; } }
+		inline void SetPPRainEnabled(bool value = true) { if (value) { _flags |= PP_RAIN; } else { _flags &= ~PP_RAIN; } }
+
+
 
 		inline bool IsOceanEnabled() const { return _flags & OCEAN_ENABLED; }
 		inline bool IsSimpleSky() const { return _flags & SIMPLE_SKY; }
@@ -1229,6 +1242,8 @@ namespace wiScene
 		float windRandomness = 5;
 		float windWaveSize = 1;
 		float windSpeed = 1;
+		uint  pp_voxel_steps = 10;
+		float pp_alpha = 1.8f;
 
 		wiOcean::OceanParameters oceanParameters;
 		AtmosphereParameters atmosphereParameters;

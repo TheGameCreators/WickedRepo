@@ -1678,6 +1678,16 @@ namespace wiScene
 									light.history |= queryResults[light.writeQuery];
 								else
 									light.history = 1;
+								if (light.history == 0)
+								{
+									//PE: Add extra frames before removing shadow rendering to let fit 1/2 frames behind.
+									if(light.delayed_shadow > 0)
+										light.delayed_shadow--;
+								}
+								else
+								{
+									light.delayed_shadow = 10;
+								}
 							}
 							break;
 						}
