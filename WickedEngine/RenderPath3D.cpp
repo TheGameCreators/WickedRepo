@@ -1789,6 +1789,19 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 		bindresourcesLock.unlock();
 
 #ifdef GGREDUCED
+		// Moved from below to avoid corruption caused when transparent objects/maybe are not drawn
+		if (getLensFlareEnabled())
+		{
+			wiRenderer::DrawLensFlares(
+				visibility_main,
+				depthBuffer_Copy,
+				cmd,
+				scene->weather.IsVolumetricClouds() ? &volumetriccloudResources[cloudIndex].texture_cloudMask : nullptr
+			);
+		}
+#endif
+
+#ifdef GGREDUCED
 		auto particlerange = wiProfiler::BeginRangeGPU("Particles - Init Render", cmd);
 		GPUParticles::gpup_draw_init(wiScene::GetCamera(), cmd);
 		wiProfiler::EndRange(particlerange);
@@ -1860,6 +1873,8 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 		device->EventEnd(cmd);
 	}
 
+#ifdef GGREDUCED
+	// Moved this to above the transparent objects draw stuff - fixes issue with lensflare disappearing when no transparents
 	if (getLensFlareEnabled())
 	{
 		wiRenderer::DrawLensFlares(
@@ -1869,6 +1884,7 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 			scene->weather.IsVolumetricClouds() ? &volumetriccloudResources[cloudIndex].texture_cloudMask : nullptr
 		);
 	}
+#endif
 
 	wiRenderer::DrawDebugWorld(*scene, *camera, *this, cmd);
 	#ifdef GGREDUCED

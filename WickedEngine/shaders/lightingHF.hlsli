@@ -468,7 +468,8 @@ inline void DirectionalLight(in ShaderEntity light, in Surface surface, inout Li
 		float3 shadow = shadow_mask;
 
 		[branch]
-		if (light.IsCastingShadow() && surface.IsReceiveShadow())
+		//if (light.IsCastingShadow() && surface.IsReceiveShadow()) LB: fixes issue of "move way away from position 0,0,0 causes graphic issues #5174"
+		if (light.IsCastingShadow() && surface.IsReceiveShadow() && g_xFrame_ShadowRes2D > 0)
 		{
 #ifndef RTAPI
 			[branch]
