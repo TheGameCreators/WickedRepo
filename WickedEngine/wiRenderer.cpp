@@ -3953,7 +3953,7 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				apparentSize = largestArea / sqrDist;
 			}
 
-			if ( apparentSize > maxApparentSize && bLayer && bFrustum)
+			if ( (apparentSize > maxApparentSize || object.bPreventAnyKindOfCulling == true) && bLayer && bFrustum)
 			{
 				// Local stream compaction:
 				group_list[group_count++] = args.jobIndex;
@@ -4013,12 +4013,14 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 						//float dist = 99999.0f;
 						//const TransformComponent& transform = vis.scene->transforms[object.transform_index];
 						//dist = wiMath::DistanceEstimated(vis.camera->Eye, transform.GetPosition());
-						if (object.GetCameraDistance() < 600.0f)
+						if (object.GetCameraDistance() < 600.0f || object.bPreventAnyKindOfCulling == true)
 						{
 							object.SetCulled(false);
 						}
 						else
+						{
 							object.SetCulled(true);
+						}
 					}
 					else if (!bFrustum)
 					{

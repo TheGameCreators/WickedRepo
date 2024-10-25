@@ -674,10 +674,10 @@ namespace wiScene
 		float fRenderOrderBiasDistance = 0.0f;
 		inline void SetRenderOrderBiasDistance(float value) { fRenderOrderBiasDistance = value; }
 		inline float GetRenderOrderBiasDistance() { return fRenderOrderBiasDistance; }
-
 		float cameraDistance = 0.0f;
 		float lodDistance = 100000.0f;
-
+		bool bPreventAnyKindOfCulling = false;
+		inline void SetRenderPreventAnyKindOfCulling(bool flag) { bPreventAnyKindOfCulling = flag; }
 #endif
 
 		inline bool IsOccluded() const
