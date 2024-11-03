@@ -1355,9 +1355,9 @@ namespace wiScene
 		wiECS::ComponentManager<ObjectComponent> objects;
 		wiECS::ComponentManager<AABB> aabb_objects;
 		wiECS::ComponentManager<RigidBodyPhysicsComponent> rigidbodies;
-#ifndef GGREDUCED //PE: Remove all physics checks, we dont use it.
+//#ifndef GGREDUCED //PE: Remove all physics checks, we dont use it.
 		wiECS::ComponentManager<SoftBodyPhysicsComponent> softbodies;
-#endif
+//#endif
 		wiECS::ComponentManager<ArmatureComponent> armatures;
 		wiECS::ComponentManager<LightComponent> lights;
 		wiECS::ComponentManager<AABB> aabb_lights;
