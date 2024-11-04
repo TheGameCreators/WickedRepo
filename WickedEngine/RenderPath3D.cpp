@@ -15,7 +15,7 @@ extern float maxApparentSize; // = 0.000002f;
 
 wiSpinLock bindresourcesLock;
 
-#define REMOVE_WICKED_PARTICLE
+//#define REMOVE_WICKED_PARTICLE
 #define REMOVE_WATER_RIPPLE
 #define REMOVE_TEMPORAL_AA
 #define REMOVE_RAY_TRACED_SHADOW
