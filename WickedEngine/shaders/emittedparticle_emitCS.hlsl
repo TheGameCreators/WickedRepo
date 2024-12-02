@@ -12,6 +12,8 @@ TYPEDBUFFER(meshIndexBuffer, uint, TEXSLOT_ONDEMAND0);
 RAWBUFFER(meshVertexBuffer_POS, TEXSLOT_ONDEMAND1);
 #endif // EMIT_FROM_MESH
 
+#define PI2 6.2831853f
+
 
 [numthreads(THREADCOUNT_EMIT, 1, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
@@ -86,24 +88,32 @@ void main(uint3 DTid : SV_DispatchThreadID)
 #else
 		// Just emit from center point:
 		float3 pos = mul(xEmitterWorld, float4(0, 0, 0, 1)).xyz;
+		
+        pos += float3(sin((float) g_xFrame_Time + DTid.x) * xParticleSinPos.x, (rand(seed, uv) - 0.5f) * xParticleSinPos.y, cos((float) g_xFrame_Time + DTid.x) * xParticleSinPos.z);
+
 #endif // EMITTER_VOLUME
 
 		float3 nor = 0;
 
 #endif // EMIT_FROM_MESH
 
-		float particleStartingSize = xParticleSize + xParticleSize * (rand(seed, uv) - 0.5f) * xParticleRandomFactor;
+
+        float particleStartingSize = xParticleSize + (xParticleSize * ((rand(seed, uv) - 0.5f) * xParticleSizeRandom));
 
 		// create new particle:
 		Particle particle;
 		particle.position = pos;
 		particle.force = 0;
 		particle.mass = xParticleMass;
-		particle.velocity = xParticleVelocity + (nor + (float3(rand(seed, uv), rand(seed, uv), rand(seed, uv)) - 0.5f) * xParticleRandomFactor) * xParticleNormalFactor;
-		particle.rotationalVelocity = xParticleRotation + (rand(seed, uv) - 0.5f) * xParticleRandomFactor;
+        particle.velocity = xParticleVelocity + (nor + (float3(rand(seed, uv), rand(seed, uv), rand(seed, uv)) - 0.5f) * xParticleNormalRandom) * xParticleNormalFactor;
+//        particle.velocity += float3(sin(rand(seed, uv) * PI2) * xParticleNormalFactorX, (rand(seed, uv) - 0.5f) * xParticleNormalFactorY, (cos(rand(seed, uv) * PI2)) * xParticleNormalFactorZ);
+        particle.velocity += float3(sin((float) DTid.x) * xParticleNormalFactorX, (rand(seed, uv) - 0.5f) * xParticleNormalFactorY, cos((float) DTid.x) * xParticleNormalFactorZ);
+        
+        //particle.rotationalVelocity = xParticleRotation + (rand(seed, uv) - 0.5f) * xParticleRotationRandom;
+        particle.rotationalVelocity = xParticleRotation + ((rand(seed, uv) - 0.5f) * xParticleRotationRandom);
 		particle.maxLife = xParticleLifeSpan + xParticleLifeSpan * (rand(seed, uv) - 0.5f) * xParticleLifeSpanRandomness;
 		particle.life = particle.maxLife;
-		particle.sizeBeginEnd = float2(particleStartingSize, particleStartingSize * xParticleScaling);
+        particle.sizeBeginEnd = float2(particleStartingSize, (particleStartingSize * xParticleScaling) + ((rand(seed, uv) - 0.5f) * xParticleScalingRandom));
 		particle.color_mirror = 0;
 		particle.color_mirror |= ((rand(seed, uv) > 0.5f) << 31) & 0x10000000;
 		particle.color_mirror |= ((rand(seed, uv) < 0.5f) << 30) & 0x20000000;

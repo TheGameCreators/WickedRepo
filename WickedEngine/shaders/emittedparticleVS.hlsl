@@ -70,7 +70,28 @@ VertextoPixel main(uint vertexID : SV_VERTEXID, uint instanceID : SV_INSTANCEID)
 
 	Out.tex = float4(uv, uv2);
 	Out.size = size;
-	Out.color = (particle.color_mirror & 0x00FFFFFF) | (uint(opacity * 255.0f) << 24);
+
+	
+	//PE: Fade in particle.
+	float normalizedTime = clamp(lifeLerp / xEmitterFadeinTime, 0, 1);
+	opacity = saturate(lerp(0, opacity, normalizedTime));
+
+	//PE: Endcolor
+    uint red = particle.color_mirror   & 0x000000FF;
+    uint green = (particle.color_mirror & 0x0000FF00) >> 8;
+    uint blue = (particle.color_mirror & 0x00FF0000) >> 16;
+	
+    uint endcolor_red = 255;
+    uint endcolor_green = 255;
+    uint endcolor_blue = 255;
+
+    red = lerp(red, xParticleEndColorRed, lifeLerp);
+    green = lerp(green, xParticleEndColorGreen, lifeLerp);
+    blue = lerp(blue, xParticleEndColorBlue, lifeLerp);
+
+	//Out.color = (particle.color_mirror & 0x00FFFFFF) | (uint(opacity * 255.0f) << 24);
+    Out.color = (red + (green << 8) + (blue << 16)) | (uint(opacity * 255.0f) << 24);
+
 	Out.unrotated_uv = quadPos.xy * float2(1, -1) / size * 0.5f + 0.5f;
 	Out.frameBlend = frameBlend;
 

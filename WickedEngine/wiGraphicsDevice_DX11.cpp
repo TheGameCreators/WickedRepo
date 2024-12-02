@@ -15,6 +15,7 @@
 #include "optick.h"
 #endif
 char g_pGraphicsCardName[256];
+uint32_t g_iActiveAdapterNumber = 0;
 #endif
 
 // These will let the driver select the dedicated GPU in favour of the integrated one:
@@ -1426,6 +1427,7 @@ GraphicsDevice_DX11::GraphicsDevice_DX11(bool debuglayer)
 				{
 					bSuccessFindingAdapter = true;
 					strcpy(g_pGraphicsCardName, cDeviceName);
+					g_iActiveAdapterNumber = index;
 					break;
 				}
 			}
