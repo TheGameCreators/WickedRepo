@@ -195,10 +195,49 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 
 	center = transform.GetPosition();
 
-	emit += (float)count*dt;
+	static float randnum = 0;
+	static float randemit = 0;
+	static uint32_t randcount = 0;
+	static uint32_t randpause = 0;
 
-	emit += burst;
-	burst = 0;
+	if (randpause == 0)
+	{
+		//if (randcount++ % 10 == 0)
+		//{
+		//	randnum = (((wiRandom::getRandom(0, 1000) * 0.001f) - 0.5) * spawn_random);
+		//}
+		randpause = ((wiRandom::getRandom(0, 1000) * 0.001f) * spawn_random);
+		if (randpause < (spawn_random * 0.6))
+			randpause = 0;
+		else
+			randpause -= (spawn_random * 0.5);
+		if(randpause > spawn_random)
+			randpause = 0;
+
+		emit += (float)(count + randnum) * dt;
+		randemit = count;
+		//randnum *= 0.1f;
+	}
+	else
+	{
+		emit += randemit * dt;
+		randemit *= 0.05;
+		randpause--;
+	}
+
+	if (emit < 0)
+		emit = 0;
+
+	if (burst_delay_timer > 0)
+	{
+		burst_delay_timer -= 1000 * dt;
+		if (burst_delay_timer < 0) burst_delay_timer = 0;
+	}
+	else
+	{
+		emit += burst;
+		burst = 0;
+	}
 
 	// Swap CURRENT alivelist with NEW alivelist
 	std::swap(aliveList[0], aliveList[1]);
@@ -224,7 +263,9 @@ void wiEmittedParticle::Burst(int num)
 {
 	if (IsPaused())
 		return;
-
+	if (num <= 0)
+		num = burst_amount;
+	burst_delay_timer = burst_delay;
 	burst += num;
 }
 void wiEmittedParticle::Restart()
@@ -266,6 +307,27 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 		cb.xParticleMass = mass;
 		cb.xEmitterMaxParticleCount = MAX_PARTICLES;
 		cb.xEmitterFixedTimestep = FIXED_TIMESTEP;
+//#ifdef GGREDUCED
+
+		cb.xEmitterRestitution = restitution;
+		cb.xEmitterFadeinTime = fadein_time;
+		XMStoreFloat3(&cb.xParticleSinPos, XMLoadFloat3(&startpos));
+		cb.xParticleNormalFactorX = normal_factor_x;
+		cb.xParticleNormalFactorY = normal_factor_y;
+		cb.xParticleNormalFactorZ = normal_factor_z;
+
+		cb.xParticleNormalRandom = normal_random;
+		cb.xParticleRotationRandom = rotation_random;
+		cb.xParticleSizeRandom = size_random;
+		cb.xParticleScalingRandom = scaling_random;
+
+		cb.xParticleEndColorRed = endcolor_red;
+		cb.xParticleEndColorGreen = endcolor_green;
+		cb.xParticleEndColorBlue = endcolor_blue;
+
+		//cb.xParticleSpawnRandom;
+
+//#endif
 		cb.xEmitterFramesXY = uint2(std::max(1u, framesX), std::max(1u, framesY));
 		cb.xEmitterFrameCount = std::max(1u, frameCount);
 		cb.xEmitterFrameStart = frameStart;
@@ -274,6 +336,7 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 		cb.xParticleGravity = gravity;
 		cb.xParticleDrag = drag;
 		XMStoreFloat3(&cb.xParticleVelocity, XMVector3TransformNormal(XMLoadFloat3(&velocity), XMLoadFloat4x4(&transform.world)));
+
 		cb.xParticleRandomColorFactor = random_color;
 		cb.xEmitterLayerMask = layerMask;
 
@@ -834,6 +897,35 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 				drag = 0.98f;
 			}
 		}
+
+
+		if (archive.GetVersion() >= 5072) //PE: Special ggm version.
+		{
+			archive >> restitution;
+			archive >> fadein_time;
+			archive >> burst_amount;
+			archive >> burst_delay;
+		}
+		if (archive.GetVersion() >= 5073) //PE: Special ggm version.
+		{
+			archive >> normal_factor_x;
+			archive >> normal_factor_y;
+			archive >> normal_factor_z;
+		}
+		if (archive.GetVersion() >= 5074) //PE: Special ggm version.
+		{
+			archive >> normal_random;
+			archive >> rotation_random;
+			archive >> size_random;
+			archive >> spawn_random;
+			archive >> scaling_random;
+			archive >> spawn_pause;
+			archive >> spawn_pause_random;
+			archive >> endcolor_red;
+			archive >> endcolor_green;
+			archive >> endcolor_blue;
+
+		}
 	}
 	else
 	{
@@ -874,6 +966,34 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 			archive << drag;
 			archive << random_color;
 		}
+
+		if (archive.GetVersion() >= 5072) //PE: Special ggm version.
+		{
+			archive << restitution;
+			archive << fadein_time;
+			archive << burst_amount;
+			archive << burst_delay;
+		}
+		if (archive.GetVersion() >= 5073) //PE: Special ggm version.
+		{
+			archive << normal_factor_x;
+			archive << normal_factor_y;
+			archive << normal_factor_z;
+		}
+		if (archive.GetVersion() >= 5074) //PE: Special ggm version.
+		{
+			archive << normal_random;
+			archive << rotation_random;
+			archive << size_random;
+			archive << spawn_random;
+			archive << scaling_random;
+			archive << spawn_pause;
+			archive << spawn_pause_random;
+			archive << endcolor_red;
+			archive << endcolor_green;
+			archive << endcolor_blue;
+		}
+
 	}
 }
 

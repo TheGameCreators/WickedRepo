@@ -110,6 +110,37 @@ public:
 	uint32_t frameStart = 0;
 	float frameRate = 0; // frames per second
 
+//#ifdef GGREDUCED
+	float restitution = 0.70f; // 0.98f; // if the particles have collision enabled, then after collision this is a multiplier for their bouncing velocities
+	float fadein_time = 0.1f;
+	float burst_amount = 0;
+	float burst_delay = 0;
+	float normal_factor_x = 0.0f;
+	float normal_factor_y = 0.0f;
+	float normal_factor_z = 0.0f;
+	float burst_delay_timer = 0;
+	XMFLOAT3 startpos = {};
+
+	float normal_random = 0;
+	float rotation_random = 0;
+	float size_random = 0;
+	float scaling_random = 0;
+
+	float spawn_random = 0;
+	float spawn_pause = 0;
+	float spawn_pause_random = 0;
+
+	uint endcolor_red = 255;
+	uint endcolor_green = 255;
+	uint endcolor_blue = 255;
+
+	bool bVisible = true;
+	inline bool IsVisible() const { return bVisible; }
+	inline void SetVisible(bool value) { bVisible = value; }
+
+	//#endif
+
+
 	void SetMaxParticleCount(uint32_t value);
 	uint32_t GetMaxParticleCount() const { return MAX_PARTICLES; }
 	uint32_t GetMemorySizeInBytes() const;

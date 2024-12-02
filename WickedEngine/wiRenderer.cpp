@@ -4107,6 +4107,9 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 			for (size_t i = 0; i < vis.scene->emitters.GetCount(); ++i)
 			{
 				const wiEmittedParticle& emitter = vis.scene->emitters[i];
+				if(!emitter.IsVisible())
+					continue;
+
 				if (!(emitter.layerMask & vis.layerMask))
 				{
 					continue;

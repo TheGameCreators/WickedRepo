@@ -87,8 +87,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gid : SV_GroupIndex)
 
 					if (dot(particle.velocity, surfaceNormal) < 0)
 					{
-						const float restitution = 0.98f;
-						particle.velocity = reflect(particle.velocity, surfaceNormal) * restitution;
+						//const float restitution = 0.98f;
+						//particle.velocity = reflect(particle.velocity, surfaceNormal) * restitution;
+						particle.velocity = reflect(particle.velocity, surfaceNormal) * xEmitterRestitution;
 					}
 				}
 			}

@@ -85,6 +85,24 @@ CBUFFER(EmittedParticleCB, CBSLOT_OTHER_EMITTEDPARTICLE)
 	float3		xParticleVelocity;
 	float		xParticleRandomColorFactor;
 
+	float		xEmitterRestitution;
+	float		xEmitterFadeinTime;
+	float		xParticleNormalFactorX;
+	float		xParticleNormalFactorY;
+
+	float3		xParticleSinPos;
+	float		xParticleNormalFactorZ;
+
+	float xParticleNormalRandom;
+	float xParticleRotationRandom;
+	float xParticleSizeRandom;
+	float xParticleScalingRandom;
+
+	uint xParticleEndColorRed;
+	uint xParticleEndColorGreen;
+	uint xParticleEndColorBlue;
+	uint xfillerdummy;
+
 };
 
 static const uint THREADCOUNT_EMIT = 256;
