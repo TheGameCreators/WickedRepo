@@ -1908,7 +1908,7 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 	// Distortion particles:
 	{
 #ifdef GGREDUCED
-		auto range = wiProfiler::BeginRangeGPU("Particles - Render (Distortion)", cmd);
+		auto range = wiProfiler::BeginRangeGPU("WParticles - Render (Distortion)", cmd);
 #else
 		auto range = wiProfiler::BeginRangeGPU("EmittedParticles - Render (Distortion)", cmd);
 #endif

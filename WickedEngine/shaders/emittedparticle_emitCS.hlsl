@@ -89,7 +89,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		// Just emit from center point:
 		float3 pos = mul(xEmitterWorld, float4(0, 0, 0, 1)).xyz;
 		
-        pos += float3(sin((float) g_xFrame_Time + DTid.x) * xParticleSinPos.x, (rand(seed, uv) - 0.5f) * xParticleSinPos.y, cos((float) g_xFrame_Time + DTid.x) * xParticleSinPos.z);
+
+        float fixedseed = xTotalEmitCount % (uint) xParticleRandomPos;
+        pos.x += (rand(fixedseed, float2(321.123, xParticleRandomPosScale)) - 0.5f) * xParticleRandomPosScale;
+        pos.z += (rand(fixedseed, float2(xParticleRandomPosScale, 456.32)) - 0.5f) * xParticleRandomPosScale;
 
 #endif // EMITTER_VOLUME
 
@@ -97,6 +100,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 #endif // EMIT_FROM_MESH
 
+        pos += float3(sin((float) (g_xFrame_Time * xParticleBurstFactorDpeed) + DTid.x) * xParticleSinPos.x, (rand(seed, uv) - 0.5f) * xParticleSinPos.y, cos((float) (g_xFrame_Time * xParticleBurstFactorDpeed) + DTid.x) * xParticleSinPos.z);
 
         float particleStartingSize = xParticleSize + (xParticleSize * ((rand(seed, uv) - 0.5f) * xParticleSizeRandom));
 
@@ -107,7 +111,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		particle.mass = xParticleMass;
         particle.velocity = xParticleVelocity + (nor + (float3(rand(seed, uv), rand(seed, uv), rand(seed, uv)) - 0.5f) * xParticleNormalRandom) * xParticleNormalFactor;
 //        particle.velocity += float3(sin(rand(seed, uv) * PI2) * xParticleNormalFactorX, (rand(seed, uv) - 0.5f) * xParticleNormalFactorY, (cos(rand(seed, uv) * PI2)) * xParticleNormalFactorZ);
-        particle.velocity += float3(sin((float) DTid.x) * xParticleNormalFactorX, (rand(seed, uv) - 0.5f) * xParticleNormalFactorY, cos((float) DTid.x) * xParticleNormalFactorZ);
+		particle.velocity += float3(sin((float) rand(seed, uv) * PI2) * xParticleNormalFactor2X, (rand(seed, uv) - 0.5f) * xParticleNormalFactor2Y, cos((float) rand(seed, uv) * PI2) * xParticleNormalFactor2Z);
+		particle.velocity += float3(sin((float) DTid.x) * xParticleNormalFactorX, (rand(seed, uv) - 0.5f) * xParticleNormalFactorY, cos((float) DTid.x) * xParticleNormalFactorZ);
         
         //particle.rotationalVelocity = xParticleRotation + (rand(seed, uv) - 0.5f) * xParticleRotationRandom;
         particle.rotationalVelocity = xParticleRotation + ((rand(seed, uv) - 0.5f) * xParticleRotationRandom);

@@ -5220,7 +5220,7 @@ void UpdateRenderData(
 	if (!vis.visibleEmitters.empty())
 	{
 #ifdef GGREDUCED
-		range = wiProfiler::BeginRangeGPU("Particles - Simulate", cmd);
+		range = wiProfiler::BeginRangeGPU("WParticles - Simulate", cmd);
 #else
 		range = wiProfiler::BeginRangeGPU("EmittedParticles - Simulate", cmd);
 #endif
@@ -5751,10 +5751,16 @@ void DrawSoftParticles(
 	{
 		return;
 	}
+
+#ifdef GGREDUCED
 	auto range = distortion ?
+		wiProfiler::BeginRangeGPU("WParticles Emitted - Render (Distortion)", cmd) :
+		wiProfiler::BeginRangeGPU("WParticles Emitted - Render", cmd);
+#else
+		auto range = distortion ?
 		wiProfiler::BeginRangeGPU("EmittedParticles - Render (Distortion)", cmd) :
 		wiProfiler::BeginRangeGPU("EmittedParticles - Render", cmd);
-
+#endif
 	device->BindResource(PS, &lineardepth, TEXSLOT_LINEARDEPTH, cmd);
 
 	// Sort emitters based on distance:

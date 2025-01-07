@@ -26,6 +26,7 @@ namespace wiProfiler
 
 #ifdef GGREDUCED
 	std::string GetProfilerData(void);
+	std::string GetProfilerDataFilter(char* filter);
 
 	void CountDrawCalls(void);
 	void CountDrawCallsShadows(void);

@@ -52,6 +52,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gid : SV_GroupIndex)
 				}
 			}
 
+            particle.force += xParticleGravity;
 
 #ifdef DEPTHCOLLISIONS
 
@@ -97,7 +98,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gid : SV_GroupIndex)
 #endif // DEPTHCOLLISIONS
 
 			// integrate:
-			particle.force += xParticleGravity;
+			//particle.force += xParticleGravity;
 			particle.velocity += particle.force * dt;
 			particle.position += particle.velocity * dt;
 

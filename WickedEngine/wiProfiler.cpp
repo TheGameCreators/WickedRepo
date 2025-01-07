@@ -338,6 +338,58 @@ namespace wiProfiler
 		}
 		return ss.str();
 	}
+	std::string GetProfilerDataFilter(char *filter)
+	{
+		if (!ENABLED || !initialized)
+			return "Profiler not initialized.";
+		if (!filter)
+			return "No filter set.";
+
+		std::stringstream ss("");
+		ss.precision(2);
+		//ss << "Profiler:" << std::endl << "----------------------------" << std::endl; //PE: Make more room.
+		ss << "Profiler Filter: " << filter << std::endl;
+
+		// Print CPU ranges:
+		bool bGotSome = false;
+		float FilterTotal = 0;
+		for (auto& index : rangeOrder[0])
+		{
+			Range range = ranges[index];
+			if (range.IsCPURange())
+			{
+				if (range.name.compare(0, strlen(filter), filter) == 0)
+				{
+					ss << range.name << ": " << std::fixed << range.time << " ms" << std::endl;
+					bGotSome = true;
+					FilterTotal += range.time;
+				}
+			}
+		}
+		if(bGotSome)
+			ss << std::endl;
+
+		// Print GPU ranges:
+		for (int i = 0; i < COMMANDLIST_COUNT; i++)
+		{
+			for (auto& index : rangeOrder[i + 1])
+			{
+				Range range = ranges[index];
+				if (!range.IsCPURange())
+				{
+					if (range.name.compare(0, strlen(filter), filter) == 0)
+					{
+						ss << range.name << ": " << std::fixed << range.time << " ms" << std::endl;
+						FilterTotal += range.time;
+					}
+				}
+			}
+		}
+		ss << "Filter Total" << ": " << std::fixed << FilterTotal << " ms" << std::endl;
+
+		return ss.str();
+	}
+
 #endif
 	struct Hits
 	{
