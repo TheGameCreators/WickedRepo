@@ -5752,6 +5752,11 @@ void DrawSoftParticles(
 		return;
 	}
 
+	//PE: repair constant buffers changed by particle shader gpup_draw_bydistance
+	BindCommonResources(cmd);
+	BindConstantBuffers(VS, cmd);
+	BindConstantBuffers(PS, cmd);
+
 #ifdef GGREDUCED
 	auto range = distortion ?
 		wiProfiler::BeginRangeGPU("WParticles Emitted - Render (Distortion)", cmd) :
