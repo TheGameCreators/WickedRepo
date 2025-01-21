@@ -4639,7 +4639,8 @@ void UpdatePerFrameData(
 void UpdateRenderData(
 	const Visibility& vis,
 	const FrameCB& frameCB,
-	CommandList cmd
+	CommandList cmd,
+	const wiGraphics::Texture& depthBuffer_Copy1
 )
 {
 	device->UpdateBuffer(&constantBuffers[CBTYPE_FRAME], &frameCB, cmd);
@@ -5231,6 +5232,8 @@ void UpdateRenderData(
 			const TransformComponent& transform = *vis.scene->transforms.GetComponent(entity);
 			const MaterialComponent& material = *vis.scene->materials.GetComponent(entity);
 			const MeshComponent* mesh = vis.scene->meshes.GetComponent(emitter.meshID);
+			//PE: Buf Fix - Depth buffer was lost after first emitter.
+			device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 
 			emitter.UpdateGPU(transform, material, mesh, cmd);
 		}

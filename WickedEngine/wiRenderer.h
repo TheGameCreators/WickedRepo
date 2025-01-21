@@ -167,7 +167,8 @@ namespace wiRenderer
 	void UpdateRenderData(
 		const Visibility& vis,
 		const FrameCB& frameCB,
-		wiGraphics::CommandList cmd
+		wiGraphics::CommandList cmd,
+		const wiGraphics::Texture& depthBuffer_Copy1
 	);
 
 	void UpdateRaytracingAccelerationStructures(const wiScene::Scene& scene, wiGraphics::CommandList cmd);
