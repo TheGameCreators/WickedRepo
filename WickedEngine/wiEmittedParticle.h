@@ -114,17 +114,23 @@ public:
 	float restitution = 0.70f; // 0.98f; // if the particles have collision enabled, then after collision this is a multiplier for their bouncing velocities
 	float fadein_time = 0.1f;
 	float burst_amount = 0;
+	float burst_split = 0;
 	float burst_delay = 0;
 	float normal_factor_x = 0.0f;
 	float normal_factor_y = 0.0f;
 	float normal_factor_z = 0.0f;
+
+	float burst_factor_x = 0.0f;
+	float burst_factor_y = 0.0f;
+	float burst_factor_z = 0.0f;
+
 	float burst_delay_timer = 0;
 	XMFLOAT3 startpos = {};
 
-	float normal_random = 0;
+	float normal_random = 1;
 	float rotation_random = 0;
 	float size_random = 0;
-	float scaling_random = 0;
+	float scaling_random = 1;
 
 	float spawn_random = 0;
 	float spawn_pause = 0;
@@ -133,6 +139,19 @@ public:
 	uint endcolor_red = 255;
 	uint endcolor_green = 255;
 	uint endcolor_blue = 255;
+
+	bool bFindFloor = false;
+	float burst_factor_speed = 1.0f;
+	float start_rotation = 0.0f;
+	bool bFollowCamera = false;
+
+	float random_position = 0.0f;
+	float random_position_scale = 1.0f;
+	uint32_t total_emit_count = 0;
+
+	bool bTriggerOutDoor = true;
+	bool bTriggerInDoor = false;
+	bool bTriggerUnderWater = false;
 
 	bool bVisible = true;
 	inline bool IsVisible() const { return bVisible; }

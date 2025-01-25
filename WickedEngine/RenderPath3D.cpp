@@ -1504,7 +1504,7 @@ void RenderPath3D::RenderFrameSetUp(CommandList cmd) const
 	GraphicsDevice* device = wiRenderer::GetDevice();
 
 	device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
-	wiRenderer::UpdateRenderData(visibility_main, frameCB, cmd);
+	wiRenderer::UpdateRenderData(visibility_main, frameCB, cmd, depthBuffer_Copy1);
 }
 
 void RenderPath3D::RenderAO(CommandList cmd) const
@@ -1908,7 +1908,7 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 	// Distortion particles:
 	{
 #ifdef GGREDUCED
-		auto range = wiProfiler::BeginRangeGPU("Particles - Render (Distortion)", cmd);
+		auto range = wiProfiler::BeginRangeGPU("WParticles - Render (Distortion)", cmd);
 #else
 		auto range = wiProfiler::BeginRangeGPU("EmittedParticles - Render (Distortion)", cmd);
 #endif

@@ -4639,7 +4639,8 @@ void UpdatePerFrameData(
 void UpdateRenderData(
 	const Visibility& vis,
 	const FrameCB& frameCB,
-	CommandList cmd
+	CommandList cmd,
+	const wiGraphics::Texture& depthBuffer_Copy1
 )
 {
 	device->UpdateBuffer(&constantBuffers[CBTYPE_FRAME], &frameCB, cmd);
@@ -5220,7 +5221,7 @@ void UpdateRenderData(
 	if (!vis.visibleEmitters.empty())
 	{
 #ifdef GGREDUCED
-		range = wiProfiler::BeginRangeGPU("Particles - Simulate", cmd);
+		range = wiProfiler::BeginRangeGPU("WParticles - Simulate", cmd);
 #else
 		range = wiProfiler::BeginRangeGPU("EmittedParticles - Simulate", cmd);
 #endif
@@ -5231,6 +5232,8 @@ void UpdateRenderData(
 			const TransformComponent& transform = *vis.scene->transforms.GetComponent(entity);
 			const MaterialComponent& material = *vis.scene->materials.GetComponent(entity);
 			const MeshComponent* mesh = vis.scene->meshes.GetComponent(emitter.meshID);
+			//PE: Buf Fix - Depth buffer was lost after first emitter.
+			device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 
 			emitter.UpdateGPU(transform, material, mesh, cmd);
 		}
@@ -5751,10 +5754,21 @@ void DrawSoftParticles(
 	{
 		return;
 	}
+
+	//PE: repair constant buffers changed by particle shader gpup_draw_bydistance
+	BindCommonResources(cmd);
+	BindConstantBuffers(VS, cmd);
+	BindConstantBuffers(PS, cmd);
+
+#ifdef GGREDUCED
 	auto range = distortion ?
+		wiProfiler::BeginRangeGPU("WParticles Emitted - Render (Distortion)", cmd) :
+		wiProfiler::BeginRangeGPU("WParticles Emitted - Render", cmd);
+#else
+		auto range = distortion ?
 		wiProfiler::BeginRangeGPU("EmittedParticles - Render (Distortion)", cmd) :
 		wiProfiler::BeginRangeGPU("EmittedParticles - Render", cmd);
-
+#endif
 	device->BindResource(PS, &lineardepth, TEXSLOT_LINEARDEPTH, cmd);
 
 	// Sort emitters based on distance:

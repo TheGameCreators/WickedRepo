@@ -101,7 +101,17 @@ CBUFFER(EmittedParticleCB, CBSLOT_OTHER_EMITTEDPARTICLE)
 	uint xParticleEndColorRed;
 	uint xParticleEndColorGreen;
 	uint xParticleEndColorBlue;
-	uint xfillerdummy;
+	float xParticleBurstFactorDpeed;
+
+	float		xParticleNormalFactor2X;
+	float		xParticleNormalFactor2Y;
+	float		xParticleNormalFactor2Z;
+	float		xParticleStartRotation;
+
+	float xParticleRandomPos;
+	float xParticleRandomPosScale;
+	uint xTotalEmitCount;
+	float fillerdummy2;
 
 };
 

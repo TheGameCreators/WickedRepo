@@ -228,6 +228,8 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 	if (emit < 0)
 		emit = 0;
 
+	total_emit_count += (uint32_t) emit;
+
 	if (burst_delay_timer > 0)
 	{
 		burst_delay_timer -= 1000 * dt;
@@ -235,8 +237,19 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 	}
 	else
 	{
-		emit += burst;
-		burst = 0;
+		if (burst_split > 0)
+		{
+			float amount = burst / burst_split;
+			emit += amount;
+			burst -= amount;
+			if (burst < 0) burst = 0;
+
+		}
+		else
+		{
+			emit += burst;
+			burst = 0;
+		}
 	}
 
 	// Swap CURRENT alivelist with NEW alivelist
@@ -290,6 +303,7 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 		EmittedParticleCB cb;
 		cb.xEmitterWorld = transform.world;
 		cb.xEmitCount = (uint32_t)emit;
+		
 		cb.xEmitterMeshIndexCount = mesh == nullptr ? 0 : (uint32_t)mesh->indices.size();
 		cb.xEmitterMeshVertexPositionStride = sizeof(MeshComponent::Vertex_POS);
 		cb.xEmitterRandomness = wiRandom::getRandom(0, 1000) * 0.001f;
@@ -312,9 +326,15 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 		cb.xEmitterRestitution = restitution;
 		cb.xEmitterFadeinTime = fadein_time;
 		XMStoreFloat3(&cb.xParticleSinPos, XMLoadFloat3(&startpos));
-		cb.xParticleNormalFactorX = normal_factor_x;
-		cb.xParticleNormalFactorY = normal_factor_y;
-		cb.xParticleNormalFactorZ = normal_factor_z;
+		cb.xParticleNormalFactorX = burst_factor_x;
+		cb.xParticleNormalFactorY = burst_factor_y;
+		cb.xParticleNormalFactorZ = burst_factor_z;
+
+		cb.xParticleBurstFactorDpeed = burst_factor_speed;
+
+		cb.xParticleNormalFactor2X = normal_factor_x;
+		cb.xParticleNormalFactor2Y = normal_factor_y;
+		cb.xParticleNormalFactor2Z = normal_factor_z;
 
 		cb.xParticleNormalRandom = normal_random;
 		cb.xParticleRotationRandom = rotation_random;
@@ -325,8 +345,13 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 		cb.xParticleEndColorGreen = endcolor_green;
 		cb.xParticleEndColorBlue = endcolor_blue;
 
+		cb.xParticleStartRotation = start_rotation;
 		//cb.xParticleSpawnRandom;
 
+		cb.xParticleRandomPos = random_position;
+		cb.xParticleRandomPosScale = random_position_scale;
+		cb.xTotalEmitCount = total_emit_count;
+		
 //#endif
 		cb.xEmitterFramesXY = uint2(std::max(1u, framesX), std::max(1u, framesY));
 		cb.xEmitterFrameCount = std::max(1u, frameCount);
@@ -421,7 +446,7 @@ void wiEmittedParticle::UpdateGPU(const TransformComponent& transform, const Mat
 
 		if (IsSPHEnabled())
 		{
-			auto range = wiProfiler::BeginRangeGPU("SPH - Simulation", cmd);
+			auto range = wiProfiler::BeginRangeGPU("WParticles SPH - Simulation", cmd);
 
 			// Smooth Particle Hydrodynamics:
 			device->EventBegin("SPH - Simulation", cmd);
@@ -924,8 +949,26 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 			archive >> endcolor_red;
 			archive >> endcolor_green;
 			archive >> endcolor_blue;
+			archive >> burst_split;
 
+			archive >> burst_factor_x;
+			archive >> burst_factor_y;
+			archive >> burst_factor_z;
 		}
+		if (archive.GetVersion() >= 5075) //PE: Special ggm version.
+		{
+			archive >> startpos;
+			archive >> bFindFloor;
+			archive >> burst_factor_speed;
+			archive >> start_rotation;
+			archive >> bFollowCamera;
+		}
+		if (archive.GetVersion() >= 5076) //PE: Special ggm version.
+		{
+			archive << random_position;
+			archive << random_position_scale;
+		}
+
 	}
 	else
 	{
@@ -992,8 +1035,25 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 			archive << endcolor_red;
 			archive << endcolor_green;
 			archive << endcolor_blue;
-		}
+			archive << burst_split;
 
+			archive << burst_factor_x;
+			archive << burst_factor_y;
+			archive << burst_factor_z;
+		}
+		if (archive.GetVersion() >= 5075) //PE: Special ggm version.
+		{
+			archive << startpos;
+			archive << bFindFloor;
+			archive << burst_factor_speed;
+			archive << start_rotation;
+			archive << bFollowCamera;
+		}
+		if (archive.GetVersion() >= 5076) //PE: Special ggm version.
+		{
+			archive << random_position;
+			archive << random_position_scale;
+		}
 	}
 }
 

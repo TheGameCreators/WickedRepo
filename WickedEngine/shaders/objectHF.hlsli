@@ -1479,7 +1479,9 @@ struct OutputPrepass
 	}
 #endif // ENVMAPRENDERING
 #endif // TRANSPARENT
+#ifndef WEAPON_SHADOW
 	clip(color.a - alphatest);
+#endif
 #endif // DISABLE_ALPHATEST
 
 

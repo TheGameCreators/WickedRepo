@@ -2,6 +2,7 @@
 #include "ShaderInterop_EmittedParticle.h"
 #include "emittedparticleHF.hlsli"
 
+#define PIHALF 1.5707963265f
 static const float3 BILLBOARD[] = {
 	float3(-1, -1, 0),	// 0
 	float3(1, -1, 0),	// 1
@@ -33,9 +34,10 @@ VertextoPixel main(uint vertexID : SV_VERTEXID, uint instanceID : SV_INSTANCEID)
 	float2 uv2 = uv;
 
 	// Sprite sheet UV transform:
+	//PE: Changed to always move flibook forward.
 	const float spriteframe = xEmitterFrameRate == 0 ? 
 		lerp(xEmitterFrameStart, xEmitterFrameCount, lifeLerp) : 
-		((xEmitterFrameStart + particle.life * xEmitterFrameRate) % xEmitterFrameCount);
+		((xEmitterFrameStart + (particle.maxLife - particle.life) * xEmitterFrameRate) % xEmitterFrameCount);
 	const uint currentFrame = floor(spriteframe);
 	const uint nextFrame = ceil(spriteframe);
 	const float frameBlend = frac(spriteframe);
@@ -46,6 +48,14 @@ VertextoPixel main(uint vertexID : SV_VERTEXID, uint instanceID : SV_INSTANCEID)
 	uv2.xy += offset2;
 	uv2.xy *= xEmitterTexMul;
 
+	//PE: Rotate to fit direction if top up view.
+    float3 velocity = mul((float3x3) g_xCamera_View, particle.velocity);
+    
+    if (particle.velocity.x != 0 || particle.velocity.z != 0)
+    {
+        rotation += (tan(normalize(velocity)) * xParticleStartRotation);
+    }
+	
 	// rotate the billboard:
 	float2x2 rot = float2x2(
 		cos(rotation), -sin(rotation),
@@ -57,7 +67,7 @@ VertextoPixel main(uint vertexID : SV_VERTEXID, uint instanceID : SV_INSTANCEID)
 	quadPos *= size;
 
 	// scale the billboard along view space motion vector:
-	float3 velocity = mul((float3x3)g_xCamera_View, particle.velocity);
+
 	quadPos += dot(quadPos, velocity) * velocity * xParticleMotionBlurAmount;
 
 
