@@ -948,6 +948,8 @@ namespace wiScene
 			archive >> windDirection;
 			archive >> windRandomness;
 			archive >> windWaveSize;
+			archive >> tree_wind;
+			
 
 			archive >> oceanParameters.dmap_dim;
 			archive >> oceanParameters.patch_length;
@@ -1099,7 +1101,8 @@ namespace wiScene
 			archive << windDirection;
 			archive << windRandomness;
 			archive << windWaveSize;
-
+			archive << tree_wind;
+			
 			archive << oceanParameters.dmap_dim;
 			archive << oceanParameters.patch_length;
 			archive << oceanParameters.time_scale;

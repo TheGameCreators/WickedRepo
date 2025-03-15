@@ -1608,7 +1608,8 @@ void LoadShaders()
 								desc.bs = &blendStates[BSTYPE_TRANSPARENT];
 								break;
 							case BLENDMODE_FORCEDEPTH:
-								desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+								//desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+								desc.bs = nullptr; // &blendStates[BSTYPE_OPAQUE];
 								break;
 #endif
 							case BLENDMODE_ADDITIVE:
@@ -3508,12 +3509,18 @@ void RenderMeshes(
 								if (useBlendMode == BLENDMODE_FORCEDEPTH)
 								{
 									// for weapons to etch out volume for weapon to be placed
-									if (iDoubleRender == 0)
+									if (iDoubleRender == 0 || renderPass == RENDERPASS_PREPASS )
 									{
+										//PE: Got debuglayer error here:
+										//D3D11 ERROR : ID3D11DeviceContext::DrawIndexedInstanced : The renderTarget bound to slot 1 has a format(R32_UINT)
+										//	that does not support blending.The Pixel Shader output signature indicates this output could be written,
+										//	and the Blend State indicates blending is enabled for this slot.[EXECUTION ERROR #376: DEVICE_DRAW_OM_RENDER_TARGET_DOES_NOT_SUPPORT_BLENDING]
+
 										OBJECTRENDERING_DOUBLESIDED regularRenderFront = OBJECTRENDERING_DOUBLESIDED_BACKSIDE;
+										//pso = &PSO_object[shaderType][renderPass][BLENDMODE_FORCEDEPTH][regularRenderFront][tessellatorRequested][alphatest];
 										pso = &PSO_object[shaderType][renderPass][BLENDMODE_FORCEDEPTH][regularRenderFront][tessellatorRequested][alphatest];
 									}
-									if (iDoubleRender == 1)
+									else if (iDoubleRender == 1) 
 									{
 										OBJECTRENDERING_DOUBLESIDED regularRenderFront = OBJECTRENDERING_DOUBLESIDED_DISABLED;
 										pso = &PSO_object[shaderType][renderPass][BLENDMODE_ALPHA][regularRenderFront][tessellatorRequested][alphatest];
@@ -3610,12 +3617,13 @@ void RenderMeshes(
 						{
 							//PE: Only basecolormap needed to alphaclip and transparent.
 							material.WriteTextures(materialtextures, 1);
+							device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, 1, cmd);
 						}
 						else //if(!bIsLodMesh)
 						{
 							material.WriteTextures(materialtextures, arraysize(materialtextures));
+							device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
 						}
-						device->BindResources(PS, materialtextures, TEXSLOT_RENDERER_BASECOLORMAP, arraysize(materialtextures), cmd);
 
 						if (tessellatorRequested)
 						{
@@ -4448,6 +4456,8 @@ void UpdatePerFrameData(
 	frameCB.g_xFrame_WindRandomness = vis.scene->weather.windRandomness;
 	frameCB.g_xFrame_WindWaveSize = vis.scene->weather.windWaveSize;
 	frameCB.g_xFrame_WindDirection = vis.scene->weather.windDirection;
+	frameCB.g_xFrame_TreeWind = vis.scene->weather.tree_wind;
+
 	frameCB.g_xFrame_StaticSkyGamma = 0.0f;
 	if (vis.scene->weather.skyMap != nullptr)
 	{

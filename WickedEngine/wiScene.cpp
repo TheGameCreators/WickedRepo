@@ -1741,8 +1741,19 @@ namespace wiScene
 		RunProbeUpdateSystem(ctx);
 		RunForceUpdateSystem(ctx);
 		RunLightUpdateSystem(ctx);
-		RunParticleUpdateSystem(ctx);
+		//RunParticleUpdateSystem(ctx); //PE: Moved down. GGREDUCED
 		RunSoundUpdateSystem(ctx);
+
+		//wiJobSystem::Wait(ctx); // dependencies
+
+		//PE: Getting debuglayer error here:
+		//D3D11 CORRUPTION: ID3D11DeviceContext::Map:
+		//Two threads were found to be executing functions associated with the same Device[Context] at the same time.
+		//	This will cause corruption of memory.Appropriate thread synchronization needs to occur external to the Direct3D API(or through the ID3D10Multithread interface).
+		//	23540 and 920 are the implicated thread ids.[MISCELLANEOUS CORRUPTION #28: CORRUPTED_MULTITHREADING]
+
+		//PE: Moved to mainthread only.
+		RunParticleUpdateSystem(ctx); // GGREDUCED
 
 		wiJobSystem::Wait(ctx); // dependencies
 
@@ -4229,6 +4240,22 @@ OPTICK_EVENT();
 		OPTICK_EVENT();
 #endif
 #endif
+		//PE: Try running this on main thread only. to prevent CORRUPTED_MULTITHREADING
+		for (uint32_t i = 0; i < emitters.GetCount(); i++)
+		{
+			wiEmittedParticle& emitter = emitters[i];
+			Entity entity = emitters.GetEntity(i);
+
+			const LayerComponent* layer = layers.GetComponent(entity);
+			if (layer != nullptr)
+			{
+				emitter.layerMask = layer->GetLayerMask();
+			}
+
+			const TransformComponent& transform = *transforms.GetComponent(entity);
+			emitter.UpdateCPU(transform, dt);
+		}
+/*
 		wiJobSystem::Dispatch(ctx, (uint32_t)emitters.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 
 			wiEmittedParticle& emitter = emitters[args.jobIndex];
@@ -4243,6 +4270,7 @@ OPTICK_EVENT();
 			const TransformComponent& transform = *transforms.GetComponent(entity);
 			emitter.UpdateCPU(transform, dt);
 		});
+*/
 
 		wiJobSystem::Dispatch(ctx, (uint32_t)hairs.GetCount(), small_subtask_groupsize, [&](wiJobArgs args) {
 

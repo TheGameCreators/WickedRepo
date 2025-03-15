@@ -1244,6 +1244,7 @@ namespace wiScene
 		float windSpeed = 1;
 		uint  pp_voxel_steps = 10;
 		float pp_alpha = 1.8f;
+		float tree_wind = 0.0f;
 
 		wiOcean::OceanParameters oceanParameters;
 		AtmosphereParameters atmosphereParameters;
