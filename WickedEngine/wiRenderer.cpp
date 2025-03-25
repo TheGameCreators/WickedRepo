@@ -148,6 +148,12 @@ namespace GPUParticles
 {
 	extern "C" void gpup_draw_bydistance(const wiScene::CameraComponent & camera, wiGraphics::CommandList cmd, float fDistanceFromCamera);
 }
+
+namespace Tracers
+{
+	extern "C" void tracer_draw(const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd);
+}
+
 #endif
 
 using namespace std;
