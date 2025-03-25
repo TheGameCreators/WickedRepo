@@ -84,6 +84,12 @@ namespace GPUParticles
 	// use gpup_draw() if it is defined, otherwise use __gpup_draw_EMPTY()
 	#pragma comment(linker, "/alternatename:gpup_draw=__gpup_draw_EMPTY")
 }
+
+namespace Tracers
+{
+	extern "C" void tracer_draw(const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd);
+}
+
 #endif
 
 void RenderPath3D::ResizeBuffers()
@@ -1816,6 +1822,8 @@ void RenderPath3D::RenderTransparents(CommandList cmd, int mode) const
 		wiRenderer::DrawScene(visibility_main, RENDERPASS_MAIN, cmd, drawscene_flags);
 
 #ifdef GGREDUCED
+		Tracers::tracer_draw(wiScene::GetCamera(), cmd);
+
 		GPUParticles::gpup_draw_bydistance(wiScene::GetCamera(), cmd, 0.0f);
 		// repair constant buffers changed by particle shader
 		//BindCommonResources(cmd);

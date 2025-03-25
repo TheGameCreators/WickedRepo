@@ -16,6 +16,8 @@ extern "C" void gpup_draw_bydistance(const wiScene::CameraComponent & camera, wi
 {
 	// nout
 }
+extern "C" void tracer_draw(const wiScene::CameraComponent& camera, wiGraphics::CommandList cmd) {}
+
 //#endif
 
 std::mutex locker;

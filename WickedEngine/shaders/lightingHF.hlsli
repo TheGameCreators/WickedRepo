@@ -566,6 +566,16 @@ inline void DirectionalLight(in ShaderEntity light, in Surface surface, inout Li
 }
 inline void PointLight(in ShaderEntity light, in Surface surface, inout Lighting lighting, in float shadow_mask = 1)
 {
+	#ifdef WEAPON_SHADOW
+	//PE: Try the same for point shadows.
+	// experiment to pull surface positions closer to camera
+	// and thus ensure geometry not STUCK INSIDE a wall that would
+	// cast a shadow on it
+	float3 diffxytz = surface.P.xyz - g_xCamera_CamPos;
+	diffxytz /= 3.0f;
+	surface.P.xyz = g_xCamera_CamPos + diffxytz;
+	#endif
+
 	float3 L = light.position - surface.P;
 	const float dist2 = dot(L, L);
 	const float range2 = light.GetRange() * light.GetRange();
@@ -622,6 +632,16 @@ inline void PointLight(in ShaderEntity light, in Surface surface, inout Lighting
 }
 inline void SpotLight(in ShaderEntity light, in Surface surface, inout Lighting lighting, in float shadow_mask = 1)
 {
+	#ifdef WEAPON_SHADOW
+	//PE: Try the same for spot shadows.
+	// experiment to pull surface positions closer to camera
+	// and thus ensure geometry not STUCK INSIDE a wall that would
+	// cast a shadow on it
+	float3 diffxytz = surface.P.xyz - g_xCamera_CamPos;
+	diffxytz /= 3.0f;
+	surface.P.xyz = g_xCamera_CamPos + diffxytz;
+	#endif
+
 	float3 L = light.position - surface.P;
 	const float dist2 = dot(L, L);
 	const float range2 = light.GetRange() * light.GetRange();
