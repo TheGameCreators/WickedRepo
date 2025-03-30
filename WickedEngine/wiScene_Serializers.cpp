@@ -949,7 +949,7 @@ namespace wiScene
 			archive >> windRandomness;
 			archive >> windWaveSize;
 			archive >> tree_wind;
-			
+			archive >> tree_sss;
 
 			archive >> oceanParameters.dmap_dim;
 			archive >> oceanParameters.patch_length;
@@ -1102,6 +1102,7 @@ namespace wiScene
 			archive << windRandomness;
 			archive << windWaveSize;
 			archive << tree_wind;
+			archive << tree_sss;
 			
 			archive << oceanParameters.dmap_dim;
 			archive << oceanParameters.patch_length;
