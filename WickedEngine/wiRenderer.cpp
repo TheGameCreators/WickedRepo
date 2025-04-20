@@ -78,7 +78,6 @@ extern uint32_t iCulledPointShadows;
 extern uint32_t iRenderedPointShadows;
 extern uint32_t iRenderedSpotShadows;
 
-
 extern uint32_t iCulledSpotShadows;
 extern bool bEnableTerrainChunkCulling;
 extern bool bEnablePointShadowCulling;

@@ -35,7 +35,6 @@ extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
 extern bool bRaycastLowestLOD;
-
 #else
 #ifdef GGREDUCED
 //PE: Sorry LMFIX need Wicked function.
@@ -54,7 +53,6 @@ extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
 extern bool bEnable30FpsAnimations;
 extern bool bRaycastLowestLOD;
-
 #endif
 #endif
 
