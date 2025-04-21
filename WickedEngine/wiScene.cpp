@@ -4324,8 +4324,8 @@ OPTICK_EVENT();
 		for (size_t i = 0; i < sounds.GetCount(); ++i)
 		{
 			SoundComponent& sound = sounds[i];
-
-			if (!sound.IsDisable3D())
+			const bool bIsplaying = sound.IsPlaying();
+			if (!sound.IsDisable3D() && bIsplaying)
 			{
 				Entity entity = sounds.GetEntity(i);
 				const TransformComponent* transform = transforms.GetComponent(entity);
@@ -4335,7 +4335,7 @@ OPTICK_EVENT();
 					wiAudio::Update3D(&sound.soundinstance, instance3D);
 				}
 			}
-			if (sound.IsPlaying())
+			if (bIsplaying)
 			{
 				wiAudio::Play(&sound.soundinstance);
 			}
@@ -4347,7 +4347,11 @@ OPTICK_EVENT();
 			{
 				wiAudio::ExitLoop(&sound.soundinstance);
 			}
-			wiAudio::SetVolume(sound.volume, &sound.soundinstance);
+			if (sound.fLastVolume != sound.volume)
+			{
+				wiAudio::SetVolume(sound.volume, &sound.soundinstance);
+				sound.fLastVolume = sound.volume;
+			}
 		}
 	}
 

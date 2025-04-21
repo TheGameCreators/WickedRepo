@@ -56,6 +56,12 @@ namespace wiAudio
 	void SetVolume(float volume, SoundInstance* instance = nullptr);
 	float GetVolume(const SoundInstance* instance = nullptr);
 	void ExitLoop(SoundInstance* instance);
+	bool bIsReallyPlaying(SoundInstance* instance);
+	float PlayedPercent(SoundInstance* instance);
+	uint32_t PlayedSamples(SoundInstance* instance);
+	bool GetVoiceState(SoundInstance* instance, void * state);
+	uint32_t GetCallBackF(SoundInstance* instance);
+	uint32_t GetCallBackS(SoundInstance* instance);
 
 	void SetSubmixVolume(SUBMIX_TYPE type, float volume);
 	float GetSubmixVolume(SUBMIX_TYPE type);
