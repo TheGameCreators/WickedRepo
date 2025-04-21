@@ -1277,6 +1277,9 @@ namespace wiScene
 		std::shared_ptr<wiResource> soundResource;
 		wiAudio::SoundInstance soundinstance;
 		float volume = 1;
+		bool isCurrentlyPlaying = false;
+		bool loopExited = false;
+		float fLastVolume = -1;
 
 		inline bool IsPlaying() const { return _flags & PLAYING; }
 		inline bool IsLooped() const { return _flags & LOOPED; }

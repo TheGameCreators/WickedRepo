@@ -128,7 +128,7 @@ namespace wiAudio
 					1, // reverb is mono
 					masteringVoiceDetails.InputSampleRate,
 					0, 0, nullptr, &effectChain);
-				#ifdef GGREDUCED
+#ifdef GGREDUCED
 				if (SUCCEEDED(hr))
 				{
 					XAUDIO2FX_REVERB_PARAMETERS native;
@@ -141,13 +141,13 @@ namespace wiAudio
 					// This can fail on some systems
 					// (reverbSubmix==NULL)
 				}
-				#else
+#else
 				assert(SUCCEEDED(hr));
 				XAUDIO2FX_REVERB_PARAMETERS native;
 				ReverbConvertI3DL2ToNative(&reverbPresets[REVERB_PRESET_DEFAULT], &native);
 				HRESULT hr = reverbSubmix->SetEffectParameters(0, &native, sizeof(native));
 				assert(SUCCEEDED(hr));
-				#endif
+#endif
 			}
 
 			success = SUCCEEDED(hr);
@@ -180,6 +180,31 @@ namespace wiAudio
 		WAVEFORMATEX wfx = {};
 		std::vector<uint8_t> audioData;
 	};
+
+	struct MyVoiceCallback : public IXAudio2VoiceCallback
+	{
+		bool m_isFinished = false;
+		bool m_hasStarted = false;
+		uint32_t iCallbackCountF = 0;
+		uint32_t iCallbackCountS = 0;
+		MyVoiceCallback() : m_isFinished(false), m_hasStarted(false) {}
+
+		void OnVoiceProcessingPassStart(UINT32 /*BytesRequired*/) {}
+		//void OnVoiceProcessingPassEnd() { m_isFinished = true; iCallbackCountF++; }
+		void OnVoiceProcessingPassEnd() {}
+		void OnStreamEnd() { m_isFinished = true; iCallbackCountF++; }
+		void OnBufferStart(void* /*pBufferContext*/) { m_hasStarted = true; m_isFinished = false; iCallbackCountS++; } // Sound started
+		void OnBufferEnd(void* /*pBufferContext*/) {}
+		void OnLoopEnd(void* /*pBufferContext*/) {}
+		void OnVoiceError(void* /*pBufferContext*/, HRESULT /*Error*/) {}
+		void ResetFinished() { m_isFinished = false; } // Add reset function
+
+		uint32_t GetCallBackF() const {	return iCallbackCountF; }
+		uint32_t GetCallBackS() const { return iCallbackCountS; }
+		bool IsFinished() const { return m_isFinished; }
+		bool HasStarted() const { return m_hasStarted; }
+	};
+
 	struct SoundInstanceInternal
 	{
 		std::shared_ptr<AudioInternal> audio;
@@ -189,6 +214,8 @@ namespace wiAudio
 		std::vector<float> outputMatrix;
 		std::vector<float> channelAzimuths;
 		XAUDIO2_BUFFER buffer = {};
+		uint32_t totalSamples = 0;
+		MyVoiceCallback* pCallback = nullptr;
 
 		~SoundInstanceInternal()
 		{
@@ -226,7 +253,7 @@ namespace wiAudio
 		DWORD bytesRead = 0;
 		DWORD dwOffset = 0;
 
-		while(true)
+		while (true)
 		{
 			memcpy(&dwChunkType, data + pos, sizeof(DWORD));
 			pos += sizeof(DWORD);
@@ -361,17 +388,19 @@ namespace wiAudio
 		instanceinternal->audio = audio;
 		instanceinternal->soundinternal = soundinternal;
 
-		XAUDIO2_SEND_DESCRIPTOR SFXSend[] = { 
+		XAUDIO2_SEND_DESCRIPTOR SFXSend[] = {
 			{ XAUDIO2_SEND_USEFILTER, audio->submixVoices[instance->type] },
 			{ XAUDIO2_SEND_USEFILTER, audio->reverbSubmix }, // this should be last to enable/disable reverb simply
 		};
-		XAUDIO2_VOICE_SENDS SFXSendList = { 
-			instance->IsEnableReverb() ? arraysize(SFXSend) : 1, 
-			SFXSend 
+		XAUDIO2_VOICE_SENDS SFXSendList = {
+			instance->IsEnableReverb() ? arraysize(SFXSend) : 1,
+			SFXSend
 		};
 
-		hr = audio->audioEngine->CreateSourceVoice(&instanceinternal->sourceVoice, &soundinternal->wfx, 
-			0, XAUDIO2_DEFAULT_FREQ_RATIO, NULL, &SFXSendList, NULL);
+		instanceinternal->pCallback = new MyVoiceCallback();
+
+		hr = audio->audioEngine->CreateSourceVoice(&instanceinternal->sourceVoice, &soundinternal->wfx,
+			0, XAUDIO2_DEFAULT_FREQ_RATIO, instanceinternal->pCallback, &SFXSendList, NULL);
 		if (FAILED(hr))
 		{
 			assert(0);
@@ -379,7 +408,7 @@ namespace wiAudio
 		}
 
 		instanceinternal->sourceVoice->GetVoiceDetails(&instanceinternal->voiceDetails);
-		
+
 		instanceinternal->outputMatrix.resize(size_t(instanceinternal->voiceDetails.InputChannels) * size_t(audio->masteringVoiceDetails.InputChannels));
 		instanceinternal->channelAzimuths.resize(instanceinternal->voiceDetails.InputChannels);
 		for (size_t i = 0; i < instanceinternal->channelAzimuths.size(); ++i)
@@ -393,6 +422,10 @@ namespace wiAudio
 		instanceinternal->buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
 		instanceinternal->buffer.LoopBegin = UINT32(instance->loop_begin * audio->masteringVoiceDetails.InputSampleRate);
 		instanceinternal->buffer.LoopLength = UINT32(instance->loop_length * audio->masteringVoiceDetails.InputSampleRate);
+
+		WORD wBitsPS = soundinternal->wfx.wBitsPerSample;
+		instanceinternal->totalSamples = instanceinternal->buffer.AudioBytes / (instanceinternal->voiceDetails.InputChannels * (wBitsPS / 8));
+
 
 		hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer);
 		if (FAILED(hr))
@@ -412,6 +445,93 @@ namespace wiAudio
 			assert(SUCCEEDED(hr));
 		}
 	}
+
+	uint32_t PlayedSamples(SoundInstance* instance)
+	{
+		XAUDIO2_VOICE_STATE state;
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			instanceinternal->sourceVoice->GetState(&state);
+			return(state.SamplesPlayed);
+		}
+		return 0;
+	}
+
+	float PlayedPercent(SoundInstance* instance)
+	{
+		XAUDIO2_VOICE_STATE state;
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			instanceinternal->sourceVoice->GetState(&state);
+			UINT64 samplesPlayed = state.SamplesPlayed;
+			//PE: Calculate percent played
+			float percent = 0.0f;
+			if (instanceinternal->totalSamples > 0)
+			{
+				percent = ( (float) samplesPlayed / (float)instanceinternal->totalSamples) * 100.0f;
+				return(percent);
+			}
+		}
+		return 0;
+	}
+	bool GetVoiceState(SoundInstance* instance,void * state)
+	{
+		if (state)
+		{
+			if (instance != nullptr && instance->IsValid())
+			{
+				auto instanceinternal = to_internal(instance);
+				instanceinternal->sourceVoice->GetState( (XAUDIO2_VOICE_STATE *) state);
+				return true;
+			}
+		}
+		return false;
+	}
+	bool bIsReallyPlaying(SoundInstance* instance)
+	{
+		XAUDIO2_VOICE_STATE state;
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			if (instanceinternal->pCallback)
+			{
+				if (instanceinternal->pCallback->HasStarted() && !instanceinternal->pCallback->IsFinished())
+					return true;
+				return false;
+			}
+		}
+		return true;
+	}
+
+	uint32_t GetCallBackF(SoundInstance* instance)
+	{
+		XAUDIO2_VOICE_STATE state;
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			if (instanceinternal->pCallback)
+			{
+				return instanceinternal->pCallback->GetCallBackF();
+			}
+		}
+		return 0;
+	}
+	uint32_t GetCallBackS(SoundInstance* instance)
+	{
+		XAUDIO2_VOICE_STATE state;
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			if (instanceinternal->pCallback)
+			{
+				return instanceinternal->pCallback->GetCallBackS();
+			}
+		}
+		return 0;
+	}
+
 	void Pause(SoundInstance* instance)
 	{
 		if (instance != nullptr && instance->IsValid())
@@ -506,7 +626,8 @@ namespace wiAudio
 			emitter.ChannelCount = instanceinternal->voiceDetails.InputChannels;
 			emitter.pChannelAzimuths = instanceinternal->channelAzimuths.data();
 			emitter.ChannelRadius = 0.1f;
-			emitter.CurveDistanceScaler = 1;
+			//emitter.CurveDistanceScaler = 1;
+			emitter.CurveDistanceScaler = 150; //200,350, 400; //PE: GGREDUCED
 			emitter.DopplerScaler = 1;
 
 			UINT32 flags = 0;
@@ -544,7 +665,7 @@ namespace wiAudio
 			hr = instanceinternal->sourceVoice->SetOutputFilterParameters(audio->submixVoices[instance->type], &FilterParametersDirect);
 			assert(SUCCEEDED(hr));
 
-			if (instance->IsEnableReverb())
+			if (instance->IsEnableReverb() && instanceinternal->audio->reverbSubmix != nullptr)
 			{
 				hr = instanceinternal->sourceVoice->SetOutputMatrix(audio->reverbSubmix, settings.SrcChannelCount, 1, &settings.ReverbLevel);
 				assert(SUCCEEDED(hr));
@@ -557,10 +678,13 @@ namespace wiAudio
 
 	void SetReverb(REVERB_PRESET preset)
 	{
-		XAUDIO2FX_REVERB_PARAMETERS native;
-		ReverbConvertI3DL2ToNative(&reverbPresets[preset], &native);
-		HRESULT hr = audio->reverbSubmix->SetEffectParameters(0, &native, sizeof(native));
-		assert(SUCCEEDED(hr));
+		if (audio->reverbSubmix != nullptr)
+		{
+			XAUDIO2FX_REVERB_PARAMETERS native;
+			ReverbConvertI3DL2ToNative(&reverbPresets[preset], &native);
+			HRESULT hr = audio->reverbSubmix->SetEffectParameters(0, &native, sizeof(native));
+			assert(SUCCEEDED(hr));
+		}
 	}
 }
 
