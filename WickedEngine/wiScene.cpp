@@ -2233,13 +2233,16 @@ namespace wiScene
 		SoundComponent& sound = sounds.Create(entity);
 		sound.filename = filename;
 		sound.soundResource = wiResourceManager::Load(filename, wiResourceManager::IMPORT_RETAIN_FILEDATA);
-		wiAudio::CreateSoundInstance(&sound.soundResource->sound, &sound.soundinstance);
-
-		TransformComponent& transform = transforms.Create(entity);
-		transform.Translate(position);
-		transform.UpdateTransform();
-
-		return entity;
+		if (sound.soundResource)
+		{
+			wiAudio::CreateSoundInstance(&sound.soundResource->sound, &sound.soundinstance);
+			TransformComponent& transform = transforms.Create(entity);
+			transform.Translate(position);
+			transform.UpdateTransform();
+			return entity;
+		}
+		Entity_Remove(entity);
+		return 0;
 	}
 
 
