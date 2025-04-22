@@ -446,6 +446,16 @@ namespace wiAudio
 		}
 	}
 
+	uint32_t GetSoundChannels(SoundInstance* instance)
+	{
+		//instanceinternal->sourceVoice->GetVoiceDetails(&instanceinternal->voiceDetails);
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			return(instanceinternal->voiceDetails.InputChannels);
+		}
+		return 0;
+	}
 	uint32_t PlayedSamples(SoundInstance* instance)
 	{
 		XAUDIO2_VOICE_STATE state;
