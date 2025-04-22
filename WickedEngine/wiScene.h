@@ -1528,6 +1528,14 @@ namespace wiScene
 			const XMFLOAT3& position = XMFLOAT3(0, 0, 0)
 		);
 
+		wiECS::Entity Entity_CreateSound_GG(
+			const std::string& name,
+			const std::string& filename,
+			const XMFLOAT3& position,
+			const std::string& realname,
+			std::vector<uint8_t>& data
+		);
+
 		// Attaches an entity to a parent:
 		//	child_already_in_local_space	:	child won't be transformed from world space to local space
 		void Component_Attach(wiECS::Entity entity, wiECS::Entity parent, bool child_already_in_local_space = false);

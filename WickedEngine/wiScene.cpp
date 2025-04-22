@@ -2231,15 +2231,65 @@ namespace wiScene
 		SoundComponent& sound = sounds.Create(entity);
 		sound.filename = filename;
 		sound.soundResource = wiResourceManager::Load(filename, wiResourceManager::IMPORT_RETAIN_FILEDATA);
-		wiAudio::CreateSoundInstance(&sound.soundResource->sound, &sound.soundinstance);
-
-		TransformComponent& transform = transforms.Create(entity);
-		transform.Translate(position);
-		transform.UpdateTransform();
-
-		return entity;
+		if (sound.soundResource)
+		{
+			wiAudio::CreateSoundInstance(&sound.soundResource->sound, &sound.soundinstance);
+			TransformComponent& transform = transforms.Create(entity);
+			transform.Translate(position);
+			transform.UpdateTransform();
+			return entity;
+		}
+		Entity_Remove(entity);
+		return 0;
 	}
 
+	Entity Scene::Entity_CreateSound_GG(
+		const std::string& name,
+		const std::string& filename,
+		const XMFLOAT3& position,
+		const std::string& realname,
+		std::vector<uint8_t>& data
+		)
+	{
+		Entity entity = CreateEntity();
+
+		names.Create(entity) = name;
+
+		//MODE_ALLOW_RETAIN_FILEDATA
+		uint32_t oldmode = wiResourceManager::GetMode();
+		wiResourceManager::SetMode(wiResourceManager::MODE_ALLOW_RETAIN_FILEDATA);
+
+		SoundComponent& sound = sounds.Create(entity);
+		sound.filename = filename;
+		if (data.size() > 0)
+		{
+			sound.soundResource = wiResourceManager::Load(realname, wiResourceManager::IMPORT_RETAIN_FILEDATA, data.data(), data.size());
+		}
+		else
+		{
+			std::vector<uint8_t> newdata;
+			if (wiHelper::FileRead(filename, newdata))
+			{
+				sound.soundResource = wiResourceManager::Load(realname, wiResourceManager::IMPORT_RETAIN_FILEDATA, newdata.data(), newdata.size());
+				data.clear();
+			}
+		}
+
+		wiResourceManager::SetMode( (wiResourceManager::MODE) oldmode);
+
+		// sound.soundResource = wiResourceManager::Load(filename, wiResourceManager::IMPORT_RETAIN_FILEDATA);
+
+		if (sound.soundResource)
+		{
+			wiAudio::CreateSoundInstance(&sound.soundResource->sound, &sound.soundinstance);
+			TransformComponent& transform = transforms.Create(entity);
+			transform.Translate(position);
+			transform.UpdateTransform();
+			return entity;
+		}
+		Entity_Remove(entity);
+		return 0;
+	}
 
 	// PE: New taken from latest wicked repo: https://github.com/turanszkij/WickedEngine/blob/5b02548268ccae82ecebc041e0d13636faeba118/WickedEngine/wiScene.cpp#L2263
 	// PE: Thanks Lee, will try it on non animated object using this one :)

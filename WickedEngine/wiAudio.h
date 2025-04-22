@@ -59,6 +59,7 @@ namespace wiAudio
 	bool bIsReallyPlaying(SoundInstance* instance);
 	float PlayedPercent(SoundInstance* instance);
 	uint32_t PlayedSamples(SoundInstance* instance);
+	uint32_t GetSoundChannels(SoundInstance* instance);
 	bool GetVoiceState(SoundInstance* instance, void * state);
 	uint32_t GetCallBackF(SoundInstance* instance);
 	uint32_t GetCallBackS(SoundInstance* instance);
