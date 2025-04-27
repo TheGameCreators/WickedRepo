@@ -377,7 +377,9 @@ namespace wiProfiler
 				Range range = ranges[index];
 				if (!range.IsCPURange())
 				{
-					if (range.name.compare(0, strlen(filter), filter) == 0)
+					//if (range.name.compare(0, strlen(filter), filter) == 0)
+					std::size_t found = range.name.find(filter);
+					if (found != std::string::npos)
 					{
 						ss << range.name << ": " << std::fixed << range.time << " ms" << std::endl;
 						FilterTotal += range.time;

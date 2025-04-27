@@ -38,11 +38,14 @@ namespace wiAudio
 		{
 			EMPTY = 0,
 			ENABLE_REVERB = 1 << 0,
+			LOOPED = 1 << 1,
 		};
 		uint32_t _flags = EMPTY;
 
 		inline void SetEnableReverb(bool value = true) { if (value) { _flags |= ENABLE_REVERB; } else { _flags &= ~ENABLE_REVERB; } }
 		inline bool IsEnableReverb() const { return _flags & ENABLE_REVERB; }
+		inline void SetLooped(bool value = true) { if (value) { _flags |= LOOPED; } else { _flags &= ~LOOPED; } }
+		inline bool IsLooped() const { return _flags & LOOPED; }
 	};
 
 	bool CreateSound(const std::string& filename, Sound* sound);
@@ -51,8 +54,10 @@ namespace wiAudio
 	bool CreateSoundInstance(const Sound* sound, SoundInstance* instance);
 
 	void Play(SoundInstance* instance);
+	void PlayLooping(SoundInstance* instance);
 	void Pause(SoundInstance* instance);
 	void Stop(SoundInstance* instance);
+	void StopLooping(SoundInstance* instance);
 	void SetVolume(float volume, SoundInstance* instance = nullptr);
 	float GetVolume(const SoundInstance* instance = nullptr);
 	void ExitLoop(SoundInstance* instance);

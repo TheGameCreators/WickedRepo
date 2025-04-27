@@ -1279,6 +1279,8 @@ namespace wiScene
 		float volume = 1;
 		bool isCurrentlyPlaying = false;
 		bool loopExited = false;
+		bool loopingStart = false;
+		bool loopingStop = false;
 		float fLastVolume = -1;
 
 		inline bool IsPlaying() const { return _flags & PLAYING; }

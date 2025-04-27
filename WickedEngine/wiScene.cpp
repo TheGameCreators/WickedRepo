@@ -4393,15 +4393,7 @@ OPTICK_EVENT();
 			{
 				wiAudio::Stop(&sound.soundinstance);
 			}
-			if (!sound.IsLooped())
-			{
-				wiAudio::ExitLoop(&sound.soundinstance);
-			}
-			if (sound.fLastVolume != sound.volume)
-			{
-				wiAudio::SetVolume(sound.volume, &sound.soundinstance);
-				sound.fLastVolume = sound.volume;
-			}
+			wiAudio::SetVolume(sound.volume, &sound.soundinstance);
 		}
 	}
 
