@@ -23,6 +23,12 @@
 #define fourccXWMA 'AMWX'
 #define fourccDPDS 'sdpd'
 
+template<typename T>
+static constexpr T AlignTo(T value, T alignment)
+{
+	return ((value + alignment - T(1)) / alignment) * alignment;
+}
+
 namespace wiAudio
 {
 	static const XAUDIO2FX_REVERB_I3DL2_PARAMETERS reverbPresets[] =
@@ -69,6 +75,8 @@ namespace wiAudio
 		X3DAUDIO_HANDLE audio3D = {};
 		Microsoft::WRL::ComPtr<IUnknown> reverbEffect;
 		IXAudio2SubmixVoice* reverbSubmix = nullptr;
+		uint32_t termination_data = 0;
+		XAUDIO2_BUFFER termination_mark = {};
 
 		AudioInternal()
 		{
@@ -150,6 +158,9 @@ namespace wiAudio
 #endif
 			}
 
+			termination_mark.Flags = XAUDIO2_END_OF_STREAM;
+			termination_mark.pAudioData = (const BYTE*)&termination_data;
+			termination_mark.AudioBytes = sizeof(termination_data);
 			success = SUCCEEDED(hr);
 		}
 		~AudioInternal()
@@ -187,6 +198,7 @@ namespace wiAudio
 		bool m_hasStarted = false;
 		uint32_t iCallbackCountF = 0;
 		uint32_t iCallbackCountS = 0;
+
 		MyVoiceCallback() : m_isFinished(false), m_hasStarted(false) {}
 
 		void OnVoiceProcessingPassStart(UINT32 /*BytesRequired*/) {}
@@ -369,7 +381,7 @@ namespace wiAudio
 			soundinternal->wfx.nBlockAlign = (WORD)channels * sizeof(short); // is this right?
 			soundinternal->wfx.nAvgBytesPerSec = soundinternal->wfx.nSamplesPerSec * soundinternal->wfx.nBlockAlign;
 
-			size_t output_size = (size_t)samples * sizeof(short);
+			size_t output_size = size_t(samples * channels) * sizeof(short);
 			soundinternal->audioData.resize(output_size);
 			memcpy(soundinternal->audioData.data(), output, output_size);
 
@@ -416,17 +428,25 @@ namespace wiAudio
 			instanceinternal->channelAzimuths[i] = X3DAUDIO_2PI * float(i) / float(instanceinternal->channelAzimuths.size());
 		}
 
-		instanceinternal->buffer.AudioBytes = (UINT32)soundinternal->audioData.size();
+		WORD wBitsPS = soundinternal->wfx.wBitsPerSample;
+		const uint32_t bytes_per_second = soundinternal->wfx.nSamplesPerSec * soundinternal->wfx.nChannels * sizeof(short);
+		//PE: Some ogg files are not aligned correct and SubmitSourceBuffer fail, align here:
+		instanceinternal->totalSamples = (UINT32)soundinternal->audioData.size() / (instanceinternal->voiceDetails.InputChannels * (wBitsPS / 8));
+		uint32_t totalAudiosize = instanceinternal->totalSamples * instanceinternal->voiceDetails.InputChannels * (wBitsPS / 8);
+		instanceinternal->buffer.AudioBytes = totalAudiosize;
 		instanceinternal->buffer.pAudioData = soundinternal->audioData.data();
 		instanceinternal->buffer.Flags = XAUDIO2_END_OF_STREAM;
-		instanceinternal->buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-		instanceinternal->buffer.LoopBegin = UINT32(instance->loop_begin * audio->masteringVoiceDetails.InputSampleRate);
-		instanceinternal->buffer.LoopLength = UINT32(instance->loop_length * audio->masteringVoiceDetails.InputSampleRate);
+		instanceinternal->buffer.LoopCount = instance->IsLooped() ? XAUDIO2_LOOP_INFINITE : 0;
+		uint32_t num_remaining_samples = instanceinternal->buffer.AudioBytes / (soundinternal->wfx.nChannels * sizeof(short));
+		if (instance->loop_begin > 0)
+		{
+			instanceinternal->buffer.LoopBegin = AlignTo(std::min(num_remaining_samples, uint32_t(instance->loop_begin * soundinternal->wfx.nSamplesPerSec)), 4u);
+			num_remaining_samples -= instanceinternal->buffer.LoopBegin;
+		}
+		instanceinternal->buffer.LoopLength = AlignTo(std::min(num_remaining_samples, uint32_t(instance->loop_length * soundinternal->wfx.nSamplesPerSec)), 4u);
 
-		WORD wBitsPS = soundinternal->wfx.wBitsPerSample;
-		instanceinternal->totalSamples = instanceinternal->buffer.AudioBytes / (instanceinternal->voiceDetails.InputChannels * (wBitsPS / 8));
-
-
+		instanceinternal->sourceVoice->Stop(0);
+		instanceinternal->sourceVoice->FlushSourceBuffers();
 		hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer);
 		if (FAILED(hr))
 		{
@@ -435,6 +455,21 @@ namespace wiAudio
 		}
 
 		return true;
+	}
+
+	void PlayLooping(SoundInstance* instance)
+	{
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			HRESULT hr;
+			hr = instanceinternal->sourceVoice->FlushSourceBuffers(); // reset submitted audio buffer
+			assert(SUCCEEDED(hr));
+			hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer); // resubmit
+			assert(SUCCEEDED(hr));
+			hr = instanceinternal->sourceVoice->Start();
+			assert(SUCCEEDED(hr));
+		}
 	}
 	void Play(SoundInstance* instance)
 	{
@@ -559,8 +594,22 @@ namespace wiAudio
 			HRESULT hr = instanceinternal->sourceVoice->Stop(); // preserves cursor position
 			assert(SUCCEEDED(hr)); 
 			hr = instanceinternal->sourceVoice->FlushSourceBuffers(); // reset submitted audio buffer
-			assert(SUCCEEDED(hr)); 
+			assert(SUCCEEDED(hr));
+			if( instanceinternal->pCallback && !instanceinternal->pCallback->IsFinished() )
+			{
+				hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&audio->termination_mark);
+				assert(SUCCEEDED(hr));
+			}
 			hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer); // resubmit
+			assert(SUCCEEDED(hr));
+		}
+	}
+	void StopLooping(SoundInstance* instance)
+	{
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			HRESULT hr = instanceinternal->sourceVoice->Stop(); // preserves cursor position
 			assert(SUCCEEDED(hr));
 		}
 	}
@@ -597,8 +646,17 @@ namespace wiAudio
 		if (instance != nullptr && instance->IsValid())
 		{
 			auto instanceinternal = to_internal(instance);
+			if (instanceinternal->buffer.LoopCount == 0)
+				return;
 			HRESULT hr = instanceinternal->sourceVoice->ExitLoop();
 			assert(SUCCEEDED(hr));
+
+			if (instanceinternal->pCallback && instanceinternal->pCallback->IsFinished())
+			{
+				instanceinternal->buffer.LoopCount = 0;
+				hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer);
+				assert(SUCCEEDED(hr));
+			}
 		}
 	}
 
@@ -637,7 +695,7 @@ namespace wiAudio
 			emitter.pChannelAzimuths = instanceinternal->channelAzimuths.data();
 			emitter.ChannelRadius = 0.1f;
 			//emitter.CurveDistanceScaler = 1;
-			emitter.CurveDistanceScaler = 150; //200,350, 400; //PE: GGREDUCED
+			emitter.CurveDistanceScaler = 180; //150,200,350, 400; //PE: GGREDUCED
 			emitter.DopplerScaler = 1;
 
 			UINT32 flags = 0;
