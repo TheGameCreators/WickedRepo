@@ -223,6 +223,10 @@ namespace wiScene
 		TextureMap textures[TEXTURESLOT_COUNT];
 
 		int customShaderID = -1;
+		float customShaderParam1 = 0;
+		float customShaderParam2 = 0;
+		float customShaderParam3 = 0;
+		float customShaderParam4 = 0;
 
 		// Non-serialized attributes:
 		wiGraphics::GPUBuffer constantBuffer;

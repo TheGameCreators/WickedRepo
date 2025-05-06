@@ -301,6 +301,11 @@ namespace wiScene
 		dest->parallaxOcclusionMapping = parallaxOcclusionMapping;
 		dest->displacementMapping = displacementMapping;
 
+		dest->customShaderParam1 = customShaderParam1;
+		dest->customShaderParam2 = customShaderParam2;
+		dest->customShaderParam3 = customShaderParam3;
+		dest->customShaderParam4 = customShaderParam4;
+
 		//PE: https://github.com/turanszkij/WickedEngine/commit/fcc3c3b3b0723966d9441d8c2de9b3924eb11565
 		/* 
 		dest->subsurfaceScattering = subsurfaceScattering;

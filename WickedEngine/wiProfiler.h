@@ -30,10 +30,12 @@ namespace wiProfiler
 
 	void CountDrawCalls(void);
 	void CountDrawCallsShadows(void);
+	void CountDrawCallsShadowsCube(void);
 	void CountDrawCallsTransparent(void);
 
 	int GetDrawCalls(void);
 	int GetDrawCallsShadows(void);
+	int GetDrawCallsShadowsCube(void);
 	int GetDrawCallsTransparent(void);
 
 	void CountPolygons(int iPoly);

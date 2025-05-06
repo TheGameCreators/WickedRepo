@@ -2268,6 +2268,200 @@ void LoadShaders()
 	wiJobSystem::Wait(ctx);
 
 }
+//desc,RENDERPASS_MAIN,PSTYPE_OBJECT,SHADERTYPE_PBR, , false, false, true
+//uint32_t blendMode ,  uint32_t doublesided OBJECTRENDERING_DOUBLESIDED_DISABLED
+bool AddPipelineDesc(wiGraphics::PipelineStateDesc& desc, uint32_t rPass, uint32_t stype, uint32_t mshaderType, uint32_t blendMode, uint32_t doublesided, bool tessellation, bool alphatest, bool transparent)
+{
+	const bool transparency = blendMode != BLENDMODE_OPAQUE;
+	SHADERTYPE realVS = GetVSTYPE((RENDERPASS)rPass, tessellation, alphatest, transparency);
+	if (stype == wiScene::MaterialComponent::SHADERTYPE_LOD && rPass == RENDERPASS_MAIN)
+	{
+		realVS = VSTYPE_OBJECT_LOD;
+	}
+	ILTYPES realVL = GetILTYPE((RENDERPASS)rPass, tessellation, alphatest, transparency);
+	SHADERTYPE realHS = GetHSTYPE((RENDERPASS)rPass, tessellation, alphatest);
+	SHADERTYPE realDS = GetDSTYPE((RENDERPASS)rPass, tessellation, alphatest);
+	SHADERTYPE realGS = GetGSTYPE((RENDERPASS)rPass, alphatest, transparency);
+	SHADERTYPE realPS = GetPSTYPE((RENDERPASS)rPass, alphatest, transparency, (MaterialComponent::SHADERTYPE)mshaderType);
+
+	if (tessellation && (realHS == SHADERTYPE_COUNT || realDS == SHADERTYPE_COUNT))
+	{
+		return false;
+	}
+
+	//PipelineStateDesc desc;
+	desc.il = realVL < ILTYPE_COUNT ? &inputLayouts[realVL] : nullptr;
+	desc.vs = realVS < SHADERTYPE_COUNT ? &shaders[realVS] : nullptr;
+	desc.hs = realHS < SHADERTYPE_COUNT ? &shaders[realHS] : nullptr;
+	desc.ds = realDS < SHADERTYPE_COUNT ? &shaders[realDS] : nullptr;
+	desc.gs = realGS < SHADERTYPE_COUNT ? &shaders[realGS] : nullptr;
+	desc.ps = realPS < SHADERTYPE_COUNT ? &shaders[realPS] : nullptr;
+
+	if (device->CheckCapability(GRAPHICSDEVICE_CAPABILITY_BINDLESS_DESCRIPTORS))
+	{
+		desc.il = nullptr;
+	}
+
+	switch (blendMode)
+	{
+	case BLENDMODE_OPAQUE:
+		desc.bs = &blendStates[BSTYPE_OPAQUE];
+		break;
+	case BLENDMODE_ALPHA:
+		desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+		break;
+#ifdef GGREDUCED
+	case BLENDMODE_ALPHANOZ:
+		desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+		break;
+	case BLENDMODE_FORCEDEPTH:
+		//desc.bs = &blendStates[BSTYPE_TRANSPARENT];
+		desc.bs = nullptr; // &blendStates[BSTYPE_OPAQUE];
+		break;
+#endif
+	case BLENDMODE_ADDITIVE:
+		desc.bs = &blendStates[BSTYPE_ADDITIVE];
+		break;
+	case BLENDMODE_PREMULTIPLIED:
+		desc.bs = &blendStates[BSTYPE_PREMULTIPLIED];
+		break;
+	case BLENDMODE_MULTIPLY:
+		desc.bs = &blendStates[BSTYPE_MULTIPLY];
+		break;
+	default:
+		assert(0);
+		break;
+	}
+
+	switch (rPass)
+	{
+	case RENDERPASS_SHADOW:
+	case RENDERPASS_SHADOWCUBE:
+		desc.bs = &blendStates[transparency ? BSTYPE_TRANSPARENTSHADOW : BSTYPE_COLORWRITEDISABLE];
+		break;
+	default:
+		break;
+	}
+
+	switch (rPass)
+	{
+	case RENDERPASS_SHADOW:
+	case RENDERPASS_SHADOWCUBE:
+		desc.dss = &depthStencils[transparency ? DSSTYPE_DEPTHREAD : DSSTYPE_SHADOW];
+		break;
+	case RENDERPASS_MAIN:
+		if (blendMode == BLENDMODE_ADDITIVE)
+		{
+			desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
+		}
+		else
+		{
+#ifdef GGREDUCED
+			if (blendMode == BLENDMODE_ALPHANOZ)
+			{
+				desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
+			}
+			else
+			{
+				if (blendMode == BLENDMODE_FORCEDEPTH)
+				{
+					desc.dss = &depthStencils[DSSTYPE_WRITEONLY];
+				}
+				else
+				{
+					desc.dss = &depthStencils[transparency ? DSSTYPE_DEFAULT : DSSTYPE_DEPTHREADEQUAL];
+				}
+			}
+#else
+			desc.dss = &depthStencils[transparency ? DSSTYPE_DEFAULT : DSSTYPE_DEPTHREADEQUAL];
+#endif
+		}
+		break;
+	case RENDERPASS_ENVMAPCAPTURE:
+		desc.dss = &depthStencils[DSSTYPE_ENVMAP];
+		break;
+	case RENDERPASS_VOXELIZE:
+		desc.dss = &depthStencils[DSSTYPE_XRAY];
+		break;
+	default:
+		if (blendMode == BLENDMODE_ADDITIVE)
+		{
+			desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
+		}
+		else
+		{
+#ifdef GGREDUCED
+			if (blendMode == BLENDMODE_ALPHANOZ)
+			{
+				desc.dss = &depthStencils[DSSTYPE_DEPTHREAD];
+			}
+			else
+			{
+				if (blendMode == BLENDMODE_FORCEDEPTH)
+				{
+					desc.dss = &depthStencils[DSSTYPE_WRITEONLY];
+				}
+				else
+				{
+					desc.dss = &depthStencils[DSSTYPE_DEFAULT];
+				}
+			}
+#else
+			desc.dss = &depthStencils[DSSTYPE_DEFAULT];
+#endif
+		}
+		break;
+	}
+
+	switch (rPass)
+	{
+	case RENDERPASS_SHADOW:
+	case RENDERPASS_SHADOWCUBE:
+		desc.rs = &rasterizers[doublesided ? RSTYPE_SHADOW_DOUBLESIDED : RSTYPE_SHADOW];
+		break;
+	case RENDERPASS_VOXELIZE:
+		desc.rs = &rasterizers[RSTYPE_VOXELIZE];
+		break;
+	default:
+		switch (doublesided)
+		{
+		default:
+		case OBJECTRENDERING_DOUBLESIDED_DISABLED:
+			desc.rs = &rasterizers[RSTYPE_FRONT];
+			break;
+		case OBJECTRENDERING_DOUBLESIDED_ENABLED:
+			desc.rs = &rasterizers[RSTYPE_DOUBLESIDED];
+			break;
+		case OBJECTRENDERING_DOUBLESIDED_BACKSIDE:
+			desc.rs = &rasterizers[RSTYPE_BACK];
+			break;
+		}
+		break;
+	}
+
+	if (tessellation)
+	{
+		desc.pt = PATCHLIST;
+	}
+	else
+	{
+		desc.pt = TRIANGLELIST;
+	}
+
+	//SHADERTYPE realVS = GetVSTYPE((RENDERPASS) rPass, false, false, true);
+	//ILTYPES realVL = GetILTYPE((RENDERPASS)rPass, false, false, true);
+	//SHADERTYPE realPS = GetPSTYPE((RENDERPASS)rPass, alphatest, transparent, (MaterialComponent::SHADERTYPE) mshaderType);
+	//desc.vs = &shaders[realVS];
+	//desc.il = &inputLayouts[realVL];
+	//desc.ps = &shaders[(SHADERTYPE) stype];
+	//desc.bs = &blendStates[BSTYPE_ADDITIVE];
+	//desc.rs = &rasterizers[RSTYPE_FRONT];
+	//desc.dss = &depthStencils[DSSTYPE_HOLOGRAM];
+	//desc.pt = TRIANGLELIST;
+	return true;
+}
+
+
 void LoadBuffers()
 {
 	GPUBufferDesc bd;
@@ -3573,6 +3767,10 @@ void RenderMeshes(
 #ifdef GGREDUCED
 					if (renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_SHADOWCUBE)
 					{
+						if (renderPass == RENDERPASS_SHADOWCUBE)
+						{
+							wiProfiler::CountDrawCallsShadowsCube();
+						}
 						wiProfiler::CountDrawCallsShadows();
 						wiProfiler::CountPolygonsShadows( (subset.indexCount / 3) * instancedBatch.instanceCount );
 					}
@@ -6663,6 +6861,8 @@ void DrawShadowmaps(
 					break;
 				}
 
+				auto rangepoint = wiProfiler::BeginRangeGPU("Shadow Rendering - Point", cmd);
+
 				//PE: Check if delayed POINT works. (FLICKER CHECK)
 				//if (light.bNotRenderedInThisframe)
 				//{
@@ -6768,6 +6968,8 @@ void DrawShadowmaps(
 					GetRenderFrameAllocator(cmd).free(sizeof(RenderBatch) * renderQueue.batchCount);
 					iRenderedPointShadows++;
 				}
+
+				wiProfiler::EndRange(rangepoint);
 
 				//wiProfiler::EndRange(range2);
 

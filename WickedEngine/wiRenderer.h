@@ -74,6 +74,8 @@ namespace wiRenderer
 		wiGraphics::SHADERMODEL minshadermodel = wiGraphics::SHADERMODEL_5_0
 	);
 
+	bool AddPipelineDesc(wiGraphics::PipelineStateDesc& desc, uint32_t rPass, uint32_t stype, uint32_t mshaderType, uint32_t blendMode, uint32_t doublesided, bool tessellation, bool alphatest, bool transparent);
+
 
 	struct Visibility
 	{

@@ -23,6 +23,7 @@ namespace wiProfiler
 #ifdef GGREDUCED
 	int iDrawCalls = 0, iOldDrawCalls = 0;
 	int iDrawCallsShadows = 0, iOldDrawCallsShadows = 0;
+	int iDrawCallsShadowsCube = 0, iOldDrawCallsShadowsCube = 0;
 	int iDrawCallsTransparent = 0, iOldDrawCallsTransparent = 0;
 
 	int iPolygonsDrawn = 0, iOldPolygonsDrawn = 0;
@@ -90,9 +91,11 @@ namespace wiProfiler
 #ifdef GGREDUCED
 		iOldDrawCalls = iDrawCalls; 
 		iOldDrawCallsShadows = iDrawCallsShadows;
+		iOldDrawCallsShadowsCube = iDrawCallsShadowsCube;
 		iOldDrawCallsTransparent = iDrawCallsTransparent;
 		iDrawCalls = 0;
 		iDrawCallsShadows = 0;
+		iDrawCallsShadowsCube = 0;
 		iDrawCallsTransparent = 0;
 
 		iOldPolygonsDrawn = iPolygonsDrawn;
@@ -251,10 +254,12 @@ namespace wiProfiler
 #ifdef GGREDUCED
 	void CountDrawCalls(void) { iDrawCalls++; }
 	void CountDrawCallsShadows(void) { iDrawCallsShadows++; }
+	void CountDrawCallsShadowsCube(void) { iDrawCallsShadowsCube++; }
 	void CountDrawCallsTransparent(void) { iDrawCallsTransparent++; }
 
 	int GetDrawCalls(void) { return(iOldDrawCalls); }
 	int GetDrawCallsShadows(void) { return(iOldDrawCallsShadows); };
+	int GetDrawCallsShadowsCube(void) { return(iOldDrawCallsShadowsCube); };
 	int GetDrawCallsTransparent(void) { return(iOldDrawCallsTransparent); };
 
 	void CountPolygons(int iPoly) { iPolygonsDrawn += iPoly; }
