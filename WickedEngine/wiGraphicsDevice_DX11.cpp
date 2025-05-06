@@ -1940,7 +1940,82 @@ bool GraphicsDevice_DX11::CreateSampler(const SamplerDesc *pSamplerDesc, Sampler
 
 	return SUCCEEDED(hr);
 }
+
 bool GraphicsDevice_DX11::CreateQueryHeap(const GPUQueryHeapDesc* pDesc, GPUQueryHeap* pQueryHeap) const
+{
+	// this has been added to attemopt to prevent a silent exception crash in NTDLL vector resize (according to PDB trace)
+	assert(pDesc != nullptr);
+	assert(pQueryHeap != nullptr);
+	assert(device != nullptr);
+
+	// Sanity-check the requested query count
+	const uint32_t maxSafeQueryCount = 65536;  // Arbitrary, safe upper limit
+	if (pDesc->queryCount == 0 || pDesc->queryCount > maxSafeQueryCount)
+	{
+		OutputDebugStringA("[CreateQueryHeap] ERROR: Invalid query count\n");
+		return false;
+	}
+
+	// Allocate the internal state safely
+	auto internal_state = std::make_shared<QueryHeap_DX11>();
+	if (!internal_state)
+	{
+		OutputDebugStringA("[CreateQueryHeap] ERROR: Failed to allocate internal state\n");
+		return false;
+	}
+
+	// Store description
+	pQueryHeap->desc = *pDesc;
+	pQueryHeap->internal_state = internal_state;
+
+	// Setup D3D query description
+	D3D11_QUERY_DESC desc = {};
+	switch (pDesc->type)
+	{
+		default:
+		case GPU_QUERY_TYPE_TIMESTAMP:
+			desc.Query = D3D11_QUERY_TIMESTAMP;
+			break;
+		case GPU_QUERY_TYPE_OCCLUSION:
+			desc.Query = D3D11_QUERY_OCCLUSION;
+			break;
+		case GPU_QUERY_TYPE_OCCLUSION_BINARY:
+			desc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
+			break;
+	}
+
+	// Resize the internal vector safely
+	try
+	{
+		OutputDebugStringA("[CreateQueryHeap] Resizing query vector...\n");
+		internal_state->resources.resize(pDesc->queryCount);
+		OutputDebugStringA("[CreateQueryHeap] Resize succeeded\n");
+	}
+	catch (const std::exception& e)
+	{
+		OutputDebugStringA(("[CreateQueryHeap] EXCEPTION during resize: " + std::string(e.what()) + "\n").c_str());
+		return false;
+	}
+
+	// Create actual queries
+	for (uint32_t i = 0; i < pDesc->queryCount; ++i)
+	{
+		HRESULT hr = device->CreateQuery(&desc, &internal_state->resources[i]);
+		if (FAILED(hr))
+		{
+			char msg[256];
+			sprintf_s(msg, "[CreateQueryHeap] ERROR: CreateQuery failed at index %u (HRESULT=0x%08X)\n", i, hr);
+			OutputDebugStringA(msg);
+			return false;
+		}
+	}
+
+	OutputDebugStringA("[CreateQueryHeap] Query heap created successfully\n");
+	return true;
+}
+
+/*
+bool GraphicsDevice_DX11::CreateQueryHeapSOFT(const GPUQueryHeapDesc* pDesc, GPUQueryHeap* pQueryHeap) const
 {
 	auto internal_state = std::make_shared<QueryHeap_DX11>();
 	pQueryHeap->internal_state = internal_state;
@@ -1964,6 +2039,13 @@ bool GraphicsDevice_DX11::CreateQueryHeap(const GPUQueryHeapDesc* pDesc, GPUQuer
 		break;
 	}
 
+	// added sanity check (silent crash)
+	if (pDesc->queryCount == 0 || pDesc->queryCount > 100000)
+	{
+		assert(false && "Query count out of bounds");
+		return false;
+	}
+
 	internal_state->resources.resize(pDesc->queryCount);
 	for (uint32_t i = 0; i < pDesc->queryCount; ++i)
 	{
@@ -1976,6 +2058,8 @@ bool GraphicsDevice_DX11::CreateQueryHeap(const GPUQueryHeapDesc* pDesc, GPUQuer
 
 	return true;
 }
+*/
+
 bool GraphicsDevice_DX11::CreatePipelineState(const PipelineStateDesc* pDesc, PipelineState* pso) const
 {
 	auto internal_state = std::make_shared<PipelineState_DX11>();

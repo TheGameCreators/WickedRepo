@@ -10,7 +10,6 @@
 #define DELAYEDSHADOWS
 bool ImGuiHook_GetScissorArea(float* pX1, float* pY1, float* pX2, float* pY2);
 extern bool g_bNoTerrainRender;
-//const float maxApparentSize = 0.000015f; // make this a global performance variable, higher to cull objects more aggressively, 0 to draw everything
 extern float maxApparentSize; // = 0.000002f;
 
 wiSpinLock bindresourcesLock;
