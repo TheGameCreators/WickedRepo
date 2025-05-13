@@ -732,6 +732,8 @@ namespace wiRenderer
 
 	void SetTransparentShadowsEnabled(float value);
 	float GetTransparentShadowsEnabled();
+	void SetDeSaturate(float value);
+	float GetDeSaturate();
 	void SetGamma(float value);
 	float GetGamma();
 	void SetWireRender(bool value);
@@ -869,6 +871,7 @@ namespace wiRenderer
 		std::string name;
 		uint32_t renderTypeFlags = RENDERTYPE_OPAQUE;
 		wiGraphics::PipelineState pso[RENDERPASS_COUNT] = {};
+		bool bActive = true;
 	};
 	// Registers a custom shader that can be set to materials. 
 	//	Returns the ID of the custom shader that can be used with MaterialComponent::SetCustomShaderID()

@@ -84,7 +84,7 @@ namespace wiAudio
 		XMFLOAT3 emitterVelocity = XMFLOAT3(0, 0, 0);
 		float emitterRadius = 0;
 	};
-	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D);
+	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D, float CurveDistanceScaler);
 
 	enum REVERB_PRESET
 	{

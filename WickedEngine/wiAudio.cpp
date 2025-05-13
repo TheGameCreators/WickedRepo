@@ -672,7 +672,7 @@ namespace wiAudio
 		return volume;
 	}
 
-	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D)
+	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D, float CurveDistanceScaler)
 	{
 		if (instance != nullptr && instance->IsValid())
 		{
@@ -695,7 +695,7 @@ namespace wiAudio
 			emitter.pChannelAzimuths = instanceinternal->channelAzimuths.data();
 			emitter.ChannelRadius = 0.1f;
 			//emitter.CurveDistanceScaler = 1;
-			emitter.CurveDistanceScaler = 180; //150,200,350, 400; //PE: GGREDUCED
+			emitter.CurveDistanceScaler = CurveDistanceScaler;// 180; //150,200,350, 400; //PE: GGREDUCED
 			emitter.DopplerScaler = 1;
 
 			UINT32 flags = 0;
@@ -777,7 +777,7 @@ namespace wiAudio
 	void SetSubmixVolume(SUBMIX_TYPE type, float volume) {}
 	float GetSubmixVolume(SUBMIX_TYPE type) { return 0; }
 
-	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D) {}
+	void Update3D(SoundInstance* instance, const SoundInstance3D& instance3D, float CurveDistanceScaler) {}
 
 	void SetReverb(REVERB_PRESET preset) {}
 }

@@ -206,6 +206,7 @@ inline LinearAllocator& GetRenderFrameAllocator(CommandList cmd)
 }
 
 float GAMMA = 2.2f;
+float DESATURATE = 1.0f;
 uint32_t SHADOWRES_2D = 2048;
 uint32_t SHADOWRES_SPOT_2D = 512;
 uint32_t SHADOWRES_CUBE = 512;
@@ -4586,6 +4587,7 @@ void UpdatePerFrameData(
 	frameCB.g_xFrame_InternalResolution = float2((float)internalResolution.x, (float)internalResolution.y);
 	frameCB.g_xFrame_InternalResolution_rcp = float2(1.0f / frameCB.g_xFrame_InternalResolution.x, 1.0f / frameCB.g_xFrame_InternalResolution.y);
 	frameCB.g_xFrame_Gamma = GetGamma();
+	frameCB.g_xFrame_DeSaturate = GetDeSaturate();
 	if (!g_bNoTerrainRender)
 	{
 		frameCB.g_xFrame_SunColor = vis.scene->weather.sunColor;
@@ -14397,6 +14399,8 @@ float GetTransparentShadowsEnabled()
 }
 void SetGamma(float value) { GAMMA = value; }
 float GetGamma() { return GAMMA; }
+void SetDeSaturate(float value) { DESATURATE = value; }
+float GetDeSaturate() { return DESATURATE; }
 void SetWireRender(bool value) { wireRender = value; }
 bool IsWireRender() { return wireRender; }
 void SetToDrawDebugBoneLines(bool param) { debugBoneLines = param; }
