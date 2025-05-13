@@ -256,6 +256,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	
 	ldr.rgb = GAMMA(ldr.rgb);
 
+	float luminance = dot(ldr.rgb, float3(0.299, 0.587, 0.114)); //PE: Luminance Weights.
+	ldr.rgb = lerp(luminance, ldr.rgb, g_xFrame_DeSaturate);
+	
 	if (is_colorgrading)
 	{
 #ifdef BINDLESS

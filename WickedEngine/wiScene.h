@@ -223,6 +223,13 @@ namespace wiScene
 		TextureMap textures[TEXTURESLOT_COUNT];
 
 		int customShaderID = -1;
+		float customShaderParam1 = 1;
+		float customShaderParam2 = 1;
+		float customShaderParam3 = 1;
+		float customShaderParam4 = 1;
+		float customShaderParam5 = 1;
+		float customShaderParam6 = 1;
+		float customShaderParam7 = 1;
 
 		// Non-serialized attributes:
 		wiGraphics::GPUBuffer constantBuffer;
@@ -1282,6 +1289,7 @@ namespace wiScene
 		bool loopingStart = false;
 		bool loopingStop = false;
 		float fLastVolume = -1;
+		float CurveDistanceScaler = 200;
 
 		inline bool IsPlaying() const { return _flags & PLAYING; }
 		inline bool IsLooped() const { return _flags & LOOPED; }

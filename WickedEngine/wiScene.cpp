@@ -299,6 +299,14 @@ namespace wiScene
 		dest->parallaxOcclusionMapping = parallaxOcclusionMapping;
 		dest->displacementMapping = displacementMapping;
 
+		dest->customShaderParam1 = customShaderParam1;
+		dest->customShaderParam2 = customShaderParam2;
+		dest->customShaderParam3 = customShaderParam3;
+		dest->customShaderParam4 = customShaderParam4;
+		dest->customShaderParam5 = customShaderParam5;
+		dest->customShaderParam6 = customShaderParam6;
+		dest->customShaderParam7 = customShaderParam7;
+
 		//PE: https://github.com/turanszkij/WickedEngine/commit/fcc3c3b3b0723966d9441d8c2de9b3924eb11565
 		/* 
 		dest->subsurfaceScattering = subsurfaceScattering;
@@ -4382,7 +4390,7 @@ OPTICK_EVENT();
 				if (transform != nullptr)
 				{
 					instance3D.emitterPos = transform->GetPosition();
-					wiAudio::Update3D(&sound.soundinstance, instance3D);
+					wiAudio::Update3D(&sound.soundinstance, instance3D, sound.CurveDistanceScaler);
 				}
 			}
 			if (bIsplaying)

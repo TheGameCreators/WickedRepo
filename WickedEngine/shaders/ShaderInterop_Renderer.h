@@ -32,8 +32,8 @@ struct ShaderMaterial
 
 	float		transmission;
 	uint		options;
-	int			padding0;
-	int			padding1;
+	float		customShaderParam1;
+	float		customShaderParam2;
 
 	uint		layerMask;
 	int			uvset_baseColorMap;
@@ -52,13 +52,13 @@ struct ShaderMaterial
 
 	int			uvset_clearcoatNormalMap;
 	int			uvset_specularMap;
-	int			padding2;
-	int			padding3;
+	float		customShaderParam3;
+	float		customShaderParam4;
 
 	float		sheenRoughness;
 	float		clearcoat;
 	float		clearcoatRoughness;
-	float		padding4;
+	float		customShaderParam5;
 
 	float4		sheenColor;
 
@@ -83,8 +83,8 @@ struct ShaderMaterial
 	int			texture_clearcoatnormalmap_index;
 
 	int			texture_specularmap_index;
-	int			padding5;
-	int			padding6;
+	float		customShaderParam6;
+	float		customShaderParam7;
 	int			padding7;
 
 	inline bool IsUsingVertexColors() { return options & SHADERMATERIAL_OPTION_BIT_USE_VERTEXCOLORS; }
@@ -652,7 +652,8 @@ CBUFFER(FrameCB, CBSLOT_RENDERER_FRAME)
 
 	int			g_xFrame_ObjectShaderSamplerIndex;
 	float		g_xFrame_BlueNoisePhase;
-	float2		g_xFrame_padding1;
+	float		g_xFrame_DeSaturate;
+	float		filler1;
 
 	AtmosphereParameters g_xFrame_Atmosphere;
 	VolumetricCloudParameters g_xFrame_VolumetricClouds;
