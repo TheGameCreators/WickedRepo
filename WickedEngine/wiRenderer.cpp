@@ -6862,14 +6862,14 @@ void DrawShadowmaps(
 					break;
 				}
 
-				auto rangepoint = wiProfiler::BeginRangeGPU("Shadow Rendering - Point", cmd);
+				//removed indidual perf check so GPU easier to read
+				//auto rangepoint = wiProfiler::BeginRangeGPU("Shadow Rendering - Point", cmd);
 
 				//PE: Check if delayed POINT works. (FLICKER CHECK)
 				//if (light.bNotRenderedInThisframe)
 				//{
 				//	break;
 				//}
-
 				//LightComponent& light2 = (LightComponent & ) vis.scene->lights[lightIndex];
 				//light2.bNotRenderedInThisframe = false;
 				//int iDelayedShadows = device->GetFrameCount();
@@ -6878,7 +6878,6 @@ void DrawShadowmaps(
 				//	light2.bNotRenderedInThisframe = true;
 				//	break;
 				//}
-
 				//char profileName[256];
 				//float distance = wiMath::Distance(vis.camera->Eye, light.position); // GGREDUCED was const
 				//sprintf_s(profileName, "Shadow Rendering - Point %d (%.2f)", shadowCounter_Cube,distance);
@@ -6970,10 +6969,7 @@ void DrawShadowmaps(
 					iRenderedPointShadows++;
 				}
 
-				wiProfiler::EndRange(rangepoint);
-
-				//wiProfiler::EndRange(range2);
-
+				//wiProfiler::EndRange(rangepoint);
 			}
 			break;
 			} // terminate switch

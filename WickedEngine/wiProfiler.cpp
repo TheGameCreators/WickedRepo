@@ -25,11 +25,9 @@ namespace wiProfiler
 	int iDrawCallsShadows = 0, iOldDrawCallsShadows = 0;
 	int iDrawCallsShadowsCube = 0, iOldDrawCallsShadowsCube = 0;
 	int iDrawCallsTransparent = 0, iOldDrawCallsTransparent = 0;
-
 	int iPolygonsDrawn = 0, iOldPolygonsDrawn = 0;
 	int iPolygonsDrawnShadows = 0, iOldPolygonsDrawnShadows = 0;
 	int iPolygonsDrawnTransparent = 0, iOldPolygonsDrawnTransparent = 0;
-
 	int iFrustumculled = 0;
 #endif
 	std::mutex lock;
@@ -48,6 +46,7 @@ namespace wiProfiler
 		float times[20] = {};
 		int avg_counter = 0;
 		float time = 0;
+		float peek = 0;
 		CommandList cmd = COMMANDLIST_COUNT;
 
 		wiTimer cpuBegin, cpuEnd;
@@ -165,6 +164,8 @@ namespace wiProfiler
 				}
 				range.time = avg_time / arraysize(range.times);
 			}
+
+			if(range.time> range.peek) range.peek = range.time;
 
 			range.in_use = false;
 		}
@@ -290,7 +291,7 @@ namespace wiProfiler
 			Range range = ranges[index];
 			if (range.IsCPURange())
 			{
-				ss << range.name << ": " << std::fixed << range.time << " ms" << std::endl;
+				ss << range.name << ": " << std::fixed << range.time << " ms (" << range.peek << " ms)" << std::endl;
 			}
 		}
 		ss << std::endl;
@@ -298,7 +299,6 @@ namespace wiProfiler
 		// Print GPU ranges:
 		float shadowTerrainTotal = 0;
 		float shadowTreesTotal = 0;
-		//float shadowPointTotal = 0;
 		for( int i = 0; i < COMMANDLIST_COUNT; i++ )
 		{
 			for (auto& index : rangeOrder[i+1])
@@ -314,10 +314,6 @@ namespace wiProfiler
 					{
 						shadowTreesTotal += range.time;
 					}
-					//else if (range.name.compare(0, strlen("Shadow Rendering - Point"), "Shadow Rendering - Point") == 0)
-					//{
-					//	shadowPointTotal += range.time;
-					//}
 					else
 					{
 						if ( shadowTerrainTotal > 0 )
@@ -330,13 +326,7 @@ namespace wiProfiler
 							ss << "Shadow Rendering - Trees" << ": " << std::fixed << shadowTreesTotal << " ms" << std::endl;
 							shadowTreesTotal = 0;
 						}
-						//if (shadowPointTotal > 0)
-						//{
-						//	ss << "Shadow Rendering - Point" << ": " << std::fixed << shadowPointTotal << " ms" << std::endl;
-						//	shadowPointTotal = 0;
-						//}
-
-						ss << range.name << ": " << std::fixed << range.time << " ms" << std::endl;
+						ss << range.name << ": " << std::fixed << range.time << " ms (" << range.peek << " ms)" << std::endl;
 					}
 				}
 			}
@@ -382,7 +372,6 @@ namespace wiProfiler
 				Range range = ranges[index];
 				if (!range.IsCPURange())
 				{
-					//if (range.name.compare(0, strlen(filter), filter) == 0)
 					std::size_t found = range.name.find(filter);
 					if (found != std::string::npos)
 					{
@@ -464,6 +453,13 @@ namespace wiProfiler
 		wiImage::Draw(wiTextureHelper::getWhite(), fx, cmd);
 
 		wiFont::Draw(ss.str(), params, cmd);
+	}
+
+	void ResetPeek (void)
+	{
+		// first clear any peek values
+		for (auto& x : ranges) x.second.peek = 0;
+		for (int i = 0; i < COMMANDLIST_COUNT + 1; i++) for (auto& x : ranges) x.second.peek = 0;
 	}
 
 	void SetEnabled(bool value)

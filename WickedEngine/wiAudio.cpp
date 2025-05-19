@@ -597,8 +597,22 @@ namespace wiAudio
 			assert(SUCCEEDED(hr));
 			if( instanceinternal->pCallback && !instanceinternal->pCallback->IsFinished() )
 			{
+				#ifdef _DEBUG
+				// exception debugbreak called in debug mode!
+				if (audio->termination_mark.AudioBytes < 8)
+				{
+					// XAudio2: AudioBytes (4) not aligned to the audio format's block size (8)
+					return;
+				}
+				else
+				{
+					hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&audio->termination_mark);
+					assert(SUCCEEDED(hr));
+				}
+				#else
 				hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&audio->termination_mark);
 				assert(SUCCEEDED(hr));
+				#endif
 			}
 			hr = instanceinternal->sourceVoice->SubmitSourceBuffer(&instanceinternal->buffer); // resubmit
 			assert(SUCCEEDED(hr));

@@ -1507,7 +1507,6 @@ void RenderPath3D::RenderFrameSetUp(CommandList cmd) const
 #endif
 #endif
 	GraphicsDevice* device = wiRenderer::GetDevice();
-
 	device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 	wiRenderer::UpdateRenderData(visibility_main, frameCB, cmd, depthBuffer_Copy1);
 }

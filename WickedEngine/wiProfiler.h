@@ -49,6 +49,8 @@ namespace wiProfiler
 	int GetFrustumCulled(void);
 	void SetFrustumCulled(int iFrustum);
 
+	void ResetPeek (void);
+
 #endif
 
 	// Enable/disable profiling
