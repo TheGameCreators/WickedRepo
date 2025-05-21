@@ -4321,7 +4321,8 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				const wiEmittedParticle& emitter = vis.scene->emitters[i];
 				if(!emitter.IsVisible())
 					continue;
-
+				if (!emitter.IsActive())
+					continue;
 				if (!(emitter.layerMask & vis.layerMask))
 				{
 					continue;
@@ -5448,7 +5449,7 @@ void UpdateRenderData(
 			const TransformComponent& transform = *vis.scene->transforms.GetComponent(entity);
 			const MaterialComponent& material = *vis.scene->materials.GetComponent(entity);
 			const MeshComponent* mesh = vis.scene->meshes.GetComponent(emitter.meshID);
-			//PE: Buf Fix - Depth buffer was lost after first emitter.
+			//PE: Bug Fix - Depth buffer was lost after first emitter.
 			device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 
 			emitter.UpdateGPU(transform, material, mesh, cmd);
