@@ -926,7 +926,7 @@ namespace wiScene
 		uint32_t delayed_shadow = 0;
 		bool bNotRenderedInThisframe = false;
 		bool bPrev_In_Frustom = true;
-
+		float last_distance = 0;
 		std::vector<std::shared_ptr<wiResource>> lensFlareRimTextures;
 
 		inline void SetCastShadow(bool value) { if (value) { _flags |= CAST_SHADOW; } else { _flags &= ~CAST_SHADOW; } }
