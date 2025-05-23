@@ -47,7 +47,6 @@ private:
 
 	float emit = 0.0f;
 	int burst = 0;
-
 	bool buffersUpToDate = false;
 	uint32_t MAX_PARTICLES = 1000;
 
@@ -153,9 +152,21 @@ public:
 	bool bTriggerInDoor = false;
 	bool bTriggerUnderWater = false;
 
+	DWORD64 emittimer = 0;
+	inline void SetTimer(DWORD64 t) { emittimer = t; }
+	inline DWORD64 GetTimer() const { return emittimer; }
+
 	bool bVisible = true;
 	inline bool IsVisible() const { return bVisible; }
 	inline void SetVisible(bool value) { bVisible = value; }
+
+	bool bActive = true;
+	inline bool IsActive() const { return bActive; }
+	inline void SetActive(bool value) { bActive = value; }
+
+	bool bStatActive = false;
+	inline bool IsStatActive() const { return bStatActive; }
+	inline void SetStatActive(bool value) { bStatActive = value; }
 
 	//#endif
 

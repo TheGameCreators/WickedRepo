@@ -51,6 +51,8 @@ uint32_t iRenderedPointShadows = 0;
 uint32_t iRenderedSpotShadows = 0;
 bool bEnableTerrainChunkCulling = false;
 bool bEnablePointShadowCulling = false;
+bool bEnableDelayPointShadow = false;
+float pointShadowScaler = 1.0f;
 bool bEnableSpotShadowCulling = false;
 bool bEnableObjectCulling = true;
 bool bEnableAnimationCulling = true;
@@ -81,6 +83,8 @@ extern uint32_t iRenderedSpotShadows;
 extern uint32_t iCulledSpotShadows;
 extern bool bEnableTerrainChunkCulling;
 extern bool bEnablePointShadowCulling;
+extern bool bEnableDelayPointShadow;
+extern float pointShadowScaler;
 extern bool bEnableSpotShadowCulling;
 extern bool bEnableObjectCulling;
 extern bool bEnableAnimationCulling;
@@ -242,6 +246,14 @@ bool SCREENSPACESHADOWS = false;
 #ifdef GGREDUCED
 float RESOLUTIONSCALE = 1.0f;
 #endif
+
+//PE: Delayed POINT shadow
+#define MAX_POINT_LIGHTS 32
+bool bSlideActive[MAX_POINT_LIGHTS] = { false };
+uint32_t bSlideLightIndex[MAX_POINT_LIGHTS];
+DWORD64 crcRender[MAX_POINT_LIGHTS] = { 0 };
+bool bSlideUsed[MAX_POINT_LIGHTS] = { false };
+bool bCanDelayShadow[MAX_POINT_LIGHTS] = { false };
 
 struct VoxelizedSceneData
 {
@@ -4050,6 +4062,7 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 #endif
 
 						distance = wiMath::DistanceEstimated(lightcomponent.position, vis.camera->Eye);
+						lightcomponent.last_distance = distance;
 #ifdef GGREDUCED
 						//PE: Before we allow more shadow lights, lets try this to stop more shadow popping.
 						if (bShadowsInFrontTakesPriority)
@@ -4321,7 +4334,8 @@ void UpdateVisibility(Visibility& vis, float maxApparentSize)
 				const wiEmittedParticle& emitter = vis.scene->emitters[i];
 				if(!emitter.IsVisible())
 					continue;
-
+				if (!emitter.IsActive())
+					continue;
 				if (!(emitter.layerMask & vis.layerMask))
 				{
 					continue;
@@ -5009,6 +5023,16 @@ void UpdateRenderData(
 		uint32_t shadowCounter_2D = SHADOWRES_2D > 0 ? 0 : SHADOWCOUNT_2D;
 		uint32_t shadowCounter_Spot_2D = SHADOWRES_SPOT_2D > 0 ? 0 : SHADOWCOUNT_SPOT_2D;
 		uint32_t shadowCounter_Cube = SHADOWRES_CUBE > 0 ? 0 : SHADOWCOUNT_CUBE;
+
+		if (bEnableDelayPointShadow)
+		{
+			//PE: Delayed POINT shadow
+			for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+			{
+				bSlideUsed[i] = false;
+				bCanDelayShadow[i] = false;
+			}
+		}
 		for (auto visibleLight : vis.visibleLights)
 		{
 			if (entityCounter == SHADER_ENTITY_COUNT)
@@ -5086,7 +5110,53 @@ void UpdateRenderData(
 					default:
 						if (shadowCounter_Cube < SHADOWCOUNT_CUBE)
 						{
-							entityArray[entityCounter].SetIndices(matrixCounter, shadowCounter_Cube);
+							//PE: Delayed POINT shadow
+							int lastsliceused = -1;
+							if (bEnableDelayPointShadow)
+							{
+								for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+								{
+									if (bSlideActive[i] && bSlideLightIndex[i] == lightIndex)
+									{
+										lastsliceused = i;
+										bSlideUsed[i] = true;
+										bCanDelayShadow[i] = true;
+										break;
+									}
+								}
+
+								if (lastsliceused == -1)
+								{
+									//PE: Allocate a new slice.
+									for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+									{
+										if (!bSlideActive[i])
+										{
+											bSlideLightIndex[i] = lightIndex;
+											bSlideActive[i] = true;
+											bSlideUsed[i] = true;
+											lastsliceused = i;
+											crcRender[lastsliceused] = 0;
+											bCanDelayShadow[i] = false;
+											break;
+										}
+									}
+								}
+								if (lastsliceused == -1)
+								{
+									char tmp[256];
+									sprintf(tmp, "No room: %d\n", lightIndex);
+									OutputDebugStringA(tmp);
+									shadowCounter_Cube += 1;
+									break;
+								}
+							}
+							else
+								lastsliceused = shadowCounter_Cube;
+
+							//entityArray[entityCounter].SetIndices(matrixCounter, shadowCounter_Cube);
+							//PE: Use lastslice so we can delay shadows.
+							entityArray[entityCounter].SetIndices(matrixCounter, lastsliceused);
 							shadowCounter_Cube += 1;
 						}
 						break;
@@ -5218,6 +5288,19 @@ void UpdateRenderData(
 			}
 
 			entityCounter++;
+		}
+
+		if (bEnableDelayPointShadow)
+		{
+			//PE: Delayed POINT shadow
+			for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+			{
+				if (!bSlideUsed[i])
+				{
+					bSlideActive[i] = false;
+					crcRender[i] = 0;
+				}
+			}
 		}
 
 		// Write force fields into entity array:
@@ -5448,7 +5531,7 @@ void UpdateRenderData(
 			const TransformComponent& transform = *vis.scene->transforms.GetComponent(entity);
 			const MaterialComponent& material = *vis.scene->materials.GetComponent(entity);
 			const MeshComponent* mesh = vis.scene->meshes.GetComponent(emitter.meshID);
-			//PE: Buf Fix - Depth buffer was lost after first emitter.
+			//PE: Bug Fix - Depth buffer was lost after first emitter.
 			device->BindResource(CS, &depthBuffer_Copy1, TEXSLOT_DEPTH, cmd);
 
 			emitter.UpdateGPU(transform, material, mesh, cmd);
@@ -6605,6 +6688,7 @@ void DrawShadowmaps(
 		uint32_t shadowCounter_Cube = SHADOWRES_CUBE > 0 ? 0 : SHADOWCOUNT_CUBE;
 		uint32_t shadowCounter_Spot_2D = SHADOWRES_SPOT_2D > 0 ? 0 : SHADOWCOUNT_SPOT_2D;
 
+
 		for (const auto& visibleLight : vis.visibleLights)
 		{
 			if (shadowCounter_2D >= SHADOWCOUNT_2D && shadowCounter_Cube >= SHADOWCOUNT_CUBE)
@@ -6862,29 +6946,75 @@ void DrawShadowmaps(
 					break;
 				}
 
+				int lastsliceused = -1;
+				if (bEnableDelayPointShadow)
+				{
+					//PE: Delayed POINT shadow
+					for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+					{
+						if (bSlideActive[i] && bSlideLightIndex[i] == lightIndex)
+						{
+							lastsliceused = i;
+							break;
+						}
+					}
+
+					if (lastsliceused == -1)
+					{
+						//PE: Should not happen but just in case.
+						for (int i = 0; i < SHADOWCOUNT_CUBE; i++)
+						{
+							if (!bSlideActive[i])
+							{
+								bSlideLightIndex[i] = lightIndex;
+								bSlideActive[i] = true;
+								lastsliceused = i;
+								bCanDelayShadow[lastsliceused] = false;
+								crcRender[lastsliceused] = 0;
+								break;
+							}
+						}
+					}
+
+					if (lastsliceused == -1)
+					{
+						break;
+					}
+
+					int iDelayedShadows = device->GetFrameCount();
+					int delay_by_distance = 2;
+					
+					//PE: Always use 2 when just added, we still want to prevent all 16 to fire. also now depends on distance.
+					if (bCanDelayShadow[lastsliceused])
+					{
+						if (light.last_distance < (400 * pointShadowScaler))
+							delay_by_distance = 2;
+						else if (light.last_distance < (1000 * pointShadowScaler))
+							delay_by_distance = 3;
+						else if (light.last_distance < (2000 * pointShadowScaler))
+							delay_by_distance = 4;
+						else if (light.last_distance < (3000 * pointShadowScaler))
+							delay_by_distance = 5;
+						else if (light.last_distance < (4000 * pointShadowScaler))
+							delay_by_distance = 6;
+						else
+							delay_by_distance = 7;
+					}
+					if ((iDelayedShadows + shadowCounter_Cube) % delay_by_distance != 0)
+					{
+						break;
+					}
+				}
+				else
+					lastsliceused = slice;
 				//removed indidual perf check so GPU easier to read
 				//auto rangepoint = wiProfiler::BeginRangeGPU("Shadow Rendering - Point", cmd);
 
-				//PE: Check if delayed POINT works. (FLICKER CHECK)
-				//if (light.bNotRenderedInThisframe)
-				//{
-				//	break;
-				//}
-				//LightComponent& light2 = (LightComponent & ) vis.scene->lights[lightIndex];
-				//light2.bNotRenderedInThisframe = false;
-				//int iDelayedShadows = device->GetFrameCount();
-				//if ((iDelayedShadows + shadowCounter_Cube) % 10 != 0)
-				//{
-				//	light2.bNotRenderedInThisframe = true;
-				//	break;
-				//}
-				//char profileName[256];
-				//float distance = wiMath::Distance(vis.camera->Eye, light.position); // GGREDUCED was const
-				//sprintf_s(profileName, "Shadow Rendering - Point %d (%.2f)", shadowCounter_Cube,distance);
-				//auto range2 = wiProfiler::BeginRangeGPU(profileName, cmd);
-
+				//PE: Only update shadow if something has changed from last render.
+				//DWORD64 currentCRC = 0;
 				SPHERE boundingsphere = SPHERE(light.position, light.GetRange());
-
+				//if(bEnableDelayPointShadow)
+				//	currentCRC += (int) light.position.x + (int) light.position.y + (int) light.position.z + (int) light.GetRange();
 				RenderQueue renderQueue;
 				bool transparentShadowsRequested = false;
 				for (size_t i = 0; i < vis.scene->aabb_objects.GetCount(); ++i)
@@ -6900,6 +7030,20 @@ void DrawShadowmaps(
 							RenderBatch* batch = (RenderBatch*)GetRenderFrameAllocator(cmd).allocate(sizeof(RenderBatch));
 							//size_t meshIndex = vis.scene->meshes.GetIndex(object.meshID);
 							//batch->Create(meshIndex, i, 0);
+
+							//if (bEnableDelayPointShadow)
+							//{
+							//	//PE: No need to know if there is any animated object, as that will change the aabb.
+							//	currentCRC += object.mesh_index;
+							//	//PE: Object has moved ? down to 0.125 movements.
+							//	currentCRC += (int)aabb._min.x * 8;
+							//	currentCRC += (int)aabb._min.y * 8;
+							//	currentCRC += (int)aabb._min.z * 8;
+							//	currentCRC += (int)aabb._max.x * 8;
+							//	currentCRC += (int)aabb._max.y * 8;
+							//	currentCRC += (int)aabb._max.z * 8;
+							//}
+
 							batch->Create(object.mesh_index, i, 0);
 							renderQueue.add(batch);
 
@@ -6912,6 +7056,17 @@ void DrawShadowmaps(
 				}
 				if (!renderQueue.empty())
 				{
+					//PE: Need more work.
+					//if (bEnableDelayPointShadow)
+					//{
+					//	if (bCanDelayShadow[lastsliceused] && crcRender[lastsliceused] == currentCRC)
+					//	{
+					//		//PE: No object changes to shadows just keep it.
+					//		break;
+					//	}
+					//	crcRender[lastsliceused] = currentCRC;
+					//}
+
 					//PE: Way faster shadow render, using special sorting to max batch and min. overdraw.
 					renderQueue.sort(RenderQueue::SORT_FRONT_TO_BACK);
 
@@ -6956,8 +7111,8 @@ void DrawShadowmaps(
 					vp.MinDepth = 0.0f;
 					vp.MaxDepth = 1.0f;
 					device->BindViewports(1, &vp, cmd);
-
-					device->RenderPassBegin(&renderpasses_shadowCube[slice], cmd);
+					//device->RenderPassBegin(&renderpasses_shadowCube[slice], cmd);
+					device->RenderPassBegin(&renderpasses_shadowCube[lastsliceused], cmd);
 					RenderMeshes(vis, renderQueue, RENDERPASS_SHADOWCUBE, RENDERTYPE_OPAQUE, cmd, false, frusta, frustum_count);
 					if (GetTransparentShadowsEnabled() && transparentShadowsRequested)
 					{

@@ -14,6 +14,7 @@
 #include "wiEvent.h"
 
 #include <algorithm>
+#include <wiTimer.h>
 
 using namespace wiGraphics;
 
@@ -184,6 +185,11 @@ uint32_t wiEmittedParticle::GetMemorySizeInBytes() const
 	return retVal;
 }
 
+DWORD64 GetElapsedMilliseconds() {
+	static DWORD64 start = GetTickCount64();
+	return GetTickCount64() - start;
+}
+
 void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 {
 	CreateSelfBuffers();
@@ -255,22 +261,41 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 	// Swap CURRENT alivelist with NEW alivelist
 	std::swap(aliveList[0], aliveList[1]);
 
-	// Read back statistics (with GPU delay):
-	if (statisticsReadBackIndex > arraysize(statisticsReadbackBuffer))
+	if (IsStatActive())
 	{
-		const uint32_t oldest_stat_index = (statisticsReadBackIndex + 1) % arraysize(statisticsReadbackBuffer);
-		GraphicsDevice* device = wiRenderer::GetDevice();
-		Mapping mapping;
-		mapping._flags = Mapping::FLAG_READ;
-		mapping.size = sizeof(statistics);
-		device->Map(&statisticsReadbackBuffer[oldest_stat_index], &mapping);
-		if (mapping.data != nullptr)
+		// Read back statistics (with GPU delay):
+		if (statisticsReadBackIndex > arraysize(statisticsReadbackBuffer))
 		{
-			memcpy(&statistics, mapping.data, sizeof(statistics));
-			device->Unmap(&statisticsReadbackBuffer[oldest_stat_index]);
+			const uint32_t oldest_stat_index = (statisticsReadBackIndex + 1) % arraysize(statisticsReadbackBuffer);
+			GraphicsDevice* device = wiRenderer::GetDevice();
+			Mapping mapping;
+			mapping._flags = Mapping::FLAG_READ;
+			mapping.size = sizeof(statistics);
+			device->Map(&statisticsReadbackBuffer[oldest_stat_index], &mapping);
+			if (mapping.data != nullptr)
+			{
+				memcpy(&statistics, mapping.data, sizeof(statistics));
+				device->Unmap(&statisticsReadbackBuffer[oldest_stat_index]);
+			}
+		}
+		statisticsReadBackIndex++;
+	}
+
+	if (emit <= 0)
+	{
+		DWORD64 maxLifeMil = (DWORD64) ((life + life * (0.5f) * random_life) * 1000.0);
+		if (GetElapsedMilliseconds() - GetTimer() > (maxLifeMil * 2))
+		{
+			SetActive(false);
 		}
 	}
-	statisticsReadBackIndex++;
+	else
+	{
+		SetTimer(GetElapsedMilliseconds());
+		SetActive(true);
+	}
+
+
 }
 void wiEmittedParticle::Burst(int num)
 {
