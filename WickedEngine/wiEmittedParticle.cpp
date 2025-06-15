@@ -201,17 +201,11 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 
 	center = transform.GetPosition();
 
-	static float randnum = 0;
-	static float randemit = 0;
-	static uint32_t randcount = 0;
-	static uint32_t randpause = 0;
+	//static float randnum = 0;
+	//static uint32_t randcount = 0;
 
 	if (randpause == 0)
 	{
-		//if (randcount++ % 10 == 0)
-		//{
-		//	randnum = (((wiRandom::getRandom(0, 1000) * 0.001f) - 0.5) * spawn_random);
-		//}
 		randpause = ((wiRandom::getRandom(0, 1000) * 0.001f) * spawn_random);
 		if (randpause < (spawn_random * 0.6))
 			randpause = 0;
@@ -220,7 +214,7 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 		if(randpause > spawn_random)
 			randpause = 0;
 
-		emit += (float)(count + randnum) * dt;
+		emit += (float)(count) * dt;
 		randemit = count;
 		//randnum *= 0.1f;
 	}
@@ -990,10 +984,16 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 		}
 		if (archive.GetVersion() >= 5076) //PE: Special ggm version.
 		{
-			archive << random_position;
-			archive << random_position_scale;
+			archive >> random_position;
+			archive >> random_position_scale;
 		}
-
+		if (archive.GetVersion() >= 5077) //PE: Special ggm version.
+		{
+			archive >> distance_sort_bias;
+			archive >> wpe_filler_1;
+			archive >> wpe_filler_2;
+			archive >> wpe_filler_3;
+		}
 	}
 	else
 	{
@@ -1079,6 +1079,14 @@ void wiEmittedParticle::Serialize(wiArchive& archive, wiECS::EntitySerializer& s
 			archive << random_position;
 			archive << random_position_scale;
 		}
+		if (archive.GetVersion() >= 5077) //PE: Special ggm version.
+		{
+			archive << distance_sort_bias;
+			archive << wpe_filler_1;
+			archive << wpe_filler_2;
+			archive << wpe_filler_3;
+		}
+
 	}
 }
 

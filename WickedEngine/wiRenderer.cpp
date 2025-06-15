@@ -6077,10 +6077,18 @@ void DrawSoftParticles(
 	{
 		const uint32_t emitterIndex = vis.visibleEmitters[i];
 		const wiEmittedParticle& emitter = vis.scene->emitters[emitterIndex];
-		float distance = wiMath::DistanceEstimated(emitter.center, vis.camera->Eye);
+		float distance = wiMath::DistanceEstimated(emitter.center, vis.camera->Eye) + emitter.distance_sort_bias;
+		if (distance < 0)
+		{
+			if (emitter.distance_sort_bias < 0)
+				distance = 0;
+			else
+				distance = 1;
+		}
 		emitterSortingHashes[i] = 0;
 		emitterSortingHashes[i] |= (uint32_t)i & 0x0000FFFF;
-		emitterSortingHashes[i] |= ((uint32_t)(distance * 10) & 0x0000FFFF) << 16;
+		//emitterSortingHashes[i] |= ((uint32_t)(distance * 10) & 0x0000FFFF) << 16;
+		emitterSortingHashes[i] |= ((uint32_t)(distance * 2.5f) & 0x0000FFFF) << 16;
 	}
 	std::sort(emitterSortingHashes, emitterSortingHashes + emitterCount, std::greater<uint32_t>());
 
