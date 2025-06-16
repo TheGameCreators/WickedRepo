@@ -1289,7 +1289,7 @@ namespace wiScene
 		bool loopingStart = false;
 		bool loopingStop = false;
 		float fLastVolume = -1;
-		float CurveDistanceScaler = 200;
+		float CurveDistanceScaler = 250;
 
 		inline bool IsPlaying() const { return _flags & PLAYING; }
 		inline bool IsLooped() const { return _flags & LOOPED; }

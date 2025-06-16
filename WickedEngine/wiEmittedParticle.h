@@ -152,6 +152,13 @@ public:
 	bool bTriggerInDoor = false;
 	bool bTriggerUnderWater = false;
 
+	float randemit = 0;
+	uint32_t randpause = 0;
+	float distance_sort_bias = 0;
+	float wpe_filler_1 = 0;
+	float wpe_filler_2 = 0;
+	float wpe_filler_3 = 0;
+
 	DWORD64 emittimer = 0;
 	inline void SetTimer(DWORD64 t) { emittimer = t; }
 	inline DWORD64 GetTimer() const { return emittimer; }
