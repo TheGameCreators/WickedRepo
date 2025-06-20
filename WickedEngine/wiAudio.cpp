@@ -700,11 +700,20 @@ namespace wiAudio
 
 			X3DAUDIO_EMITTER emitter = {};
 			emitter.Position = instance3D.emitterPos;
-			emitter.OrientFront = instance3D.emitterFront;
-			emitter.OrientTop = instance3D.emitterUp;
+
+			//PE: Slight difference in volume (left to right) , set emitter's orientation to match the listener's
+			emitter.OrientFront = instance3D.listenerFront; //PE: Make emitter face same way as listener
+			emitter.OrientTop = instance3D.listenerUp;   //PE: Make emitter's up match listener's up
+
+			//emitter.OrientFront = instance3D.emitterFront;
+			//emitter.OrientTop = instance3D.emitterUp;
 			emitter.Velocity = instance3D.emitterVelocity;
-			emitter.InnerRadius = instance3D.emitterRadius;
-			emitter.InnerRadiusAngle = X3DAUDIO_PI / 4.0f;
+			//PE: True point sound settings for omnidirectional.
+			emitter.InnerRadius = 0;
+			emitter.InnerRadiusAngle = X3DAUDIO_2PI;
+
+			//emitter.InnerRadius = instance3D.emitterRadius;
+			//emitter.InnerRadiusAngle = X3DAUDIO_PI / 4.0f;
 			emitter.ChannelCount = instanceinternal->voiceDetails.InputChannels;
 			emitter.pChannelAzimuths = instanceinternal->channelAzimuths.data();
 			emitter.ChannelRadius = 0.1f;

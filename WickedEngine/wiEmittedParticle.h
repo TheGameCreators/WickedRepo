@@ -71,6 +71,7 @@ public:
 		FLAG_SPH_FLUIDSIMULATION = 1 << 4,
 		FLAG_HAS_VOLUME = 1 << 5,
 		FLAG_FRAME_BLENDING = 1 << 6,
+		FLAG_EMIT_PAUSE = 1 << 7,
 	};
 	uint32_t _flags = FLAG_EMPTY;
 
@@ -189,6 +190,8 @@ public:
 
 	inline bool IsDebug() const { return _flags & FLAG_DEBUG; }
 	inline bool IsPaused() const { return _flags & FLAG_PAUSED; }
+	inline bool IsEmitPaused() const { return _flags & FLAG_EMIT_PAUSE; }
+	
 	inline bool IsSorted() const { return _flags & FLAG_SORTING; }
 	inline bool IsDepthCollisionEnabled() const { return _flags & FLAG_DEPTHCOLLISION; }
 	inline bool IsSPHEnabled() const { return _flags & FLAG_SPH_FLUIDSIMULATION; }
@@ -197,6 +200,7 @@ public:
 
 	inline void SetDebug(bool value) { if (value) { _flags |= FLAG_DEBUG; } else { _flags &= ~FLAG_DEBUG; } }
 	inline void SetPaused(bool value) { if (value) { _flags |= FLAG_PAUSED; } else { _flags &= ~FLAG_PAUSED; } }
+	inline void SetEmitPaused(bool value) { if (value) { _flags |= FLAG_EMIT_PAUSE; } else { _flags &= ~FLAG_EMIT_PAUSE; } }
 	inline void SetSorted(bool value) { if (value) { _flags |= FLAG_SORTING; } else { _flags &= ~FLAG_SORTING; } }
 	inline void SetDepthCollisionEnabled(bool value) { if (value) { _flags |= FLAG_DEPTHCOLLISION; } else { _flags &= ~FLAG_DEPTHCOLLISION; } }
 	inline void SetSPHEnabled(bool value) { if (value) { _flags |= FLAG_SPH_FLUIDSIMULATION; } else { _flags &= ~FLAG_SPH_FLUIDSIMULATION; } }

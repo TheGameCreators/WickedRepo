@@ -228,8 +228,6 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 	if (emit < 0)
 		emit = 0;
 
-	total_emit_count += (uint32_t) emit;
-
 	if (burst_delay_timer > 0)
 	{
 		burst_delay_timer -= 1000 * dt;
@@ -251,6 +249,15 @@ void wiEmittedParticle::UpdateCPU(const TransformComponent& transform, float dt)
 			burst = 0;
 		}
 	}
+
+	if (IsEmitPaused())
+	{
+		//PE: Just let it timeout later.
+		emit = 0;
+		burst = 0;
+	}
+
+	total_emit_count += (uint32_t)emit;
 
 	// Swap CURRENT alivelist with NEW alivelist
 	std::swap(aliveList[0], aliveList[1]);
