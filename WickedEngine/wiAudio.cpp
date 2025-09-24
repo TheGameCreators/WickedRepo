@@ -471,6 +471,32 @@ namespace wiAudio
 			assert(SUCCEEDED(hr));
 		}
 	}
+	
+
+	uint32_t GetSamplePersec(SoundInstance* instance)
+	{
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			if(instanceinternal && instanceinternal->soundinternal)
+				return(instanceinternal->soundinternal->wfx.nSamplesPerSec);
+		}
+		return 0;
+	}
+
+	void SetFrequencyRatio(SoundInstance* instance,float frequencyRatio)
+	{
+		if (instance != nullptr && instance->IsValid())
+		{
+			auto instanceinternal = to_internal(instance);
+			if (instanceinternal && instanceinternal->sourceVoice)
+			{
+				HRESULT hr = instanceinternal->sourceVoice->SetFrequencyRatio(frequencyRatio, XAUDIO2_COMMIT_NOW);
+				assert(SUCCEEDED(hr));
+			}
+		}
+	}
+
 	void Play(SoundInstance* instance)
 	{
 		if (instance != nullptr && instance->IsValid())

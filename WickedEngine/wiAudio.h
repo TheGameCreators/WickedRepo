@@ -68,6 +68,8 @@ namespace wiAudio
 	bool GetVoiceState(SoundInstance* instance, void * state);
 	uint32_t GetCallBackF(SoundInstance* instance);
 	uint32_t GetCallBackS(SoundInstance* instance);
+	void SetFrequencyRatio(SoundInstance* instance,float frequencyRatio);
+	uint32_t GetSamplePersec(SoundInstance* instance);
 
 	void SetSubmixVolume(SUBMIX_TYPE type, float volume);
 	float GetSubmixVolume(SUBMIX_TYPE type);

@@ -209,7 +209,7 @@ public:
 #ifdef GGREDUCED
 	virtual void RenderOutlineHighlighers(wiGraphics::CommandList cmd) const;
 #endif
-	void CheckUsedTextures();
+	void CheckUsedTextures(bool force);
 	void ResizeBuffers() override;
 
 	wiScene::CameraComponent* camera = &wiScene::GetCamera();

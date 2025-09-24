@@ -92,10 +92,10 @@ namespace Tracers
 
 #endif
 
-void RenderPath3D::CheckUsedTextures()
+void RenderPath3D::CheckUsedTextures(bool force)
 {
 	static int current_getVolumeLightsEnabled = -1;
-	if (current_getVolumeLightsEnabled != getVolumeLightsEnabled())
+	if (force || current_getVolumeLightsEnabled != getVolumeLightsEnabled())
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 		current_getVolumeLightsEnabled = getVolumeLightsEnabled();
@@ -130,7 +130,7 @@ void RenderPath3D::CheckUsedTextures()
 	}
 
 	static int current_getDepthOfFieldEnabled = -1;
-	if (current_getDepthOfFieldEnabled != getDepthOfFieldEnabled())
+	if (force || current_getDepthOfFieldEnabled != getDepthOfFieldEnabled())
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 		current_getDepthOfFieldEnabled = getDepthOfFieldEnabled();
@@ -151,7 +151,7 @@ void RenderPath3D::CheckUsedTextures()
 	}
 
 	static int current_getMotionBlurEnabled = -1;
-	if (current_getMotionBlurEnabled != getMotionBlurEnabled())
+	if (force || current_getMotionBlurEnabled != getMotionBlurEnabled())
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 		current_getMotionBlurEnabled = getMotionBlurEnabled();
@@ -172,8 +172,7 @@ void RenderPath3D::CheckUsedTextures()
 	}
 
 	static int current_hdr1 = -1;
-
-	if(current_hdr1 != getMotionBlurEnabled() || getDepthOfFieldEnabled())
+	if(force || current_hdr1 != getMotionBlurEnabled() || getDepthOfFieldEnabled())
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 		current_hdr1 = getMotionBlurEnabled() || getDepthOfFieldEnabled();
@@ -202,9 +201,10 @@ void RenderPath3D::CheckUsedTextures()
 			device->SetName(&rtPostprocess_HDR[1], "rtPostprocess_HDR[1]");
 		}
 	}
+	
 
 	static int current_getReflectionsEnabled = -1;
-	if( current_getReflectionsEnabled != getReflectionsEnabled())
+	if( force || current_getReflectionsEnabled != getReflectionsEnabled())
 	{
 		GraphicsDevice* device = wiRenderer::GetDevice();
 		current_getReflectionsEnabled = getReflectionsEnabled();
@@ -799,7 +799,7 @@ void RenderPath3D::ResizeBuffers()
 	setFSREnabled(fsrEnabled);
 
 
-	CheckUsedTextures();
+	CheckUsedTextures(true);
 
 	RenderPath2D::ResizeBuffers();
 }
@@ -859,7 +859,7 @@ void RenderPath3D::Update(float dt)
 	}
 
 	//PE: Only update textures depending of usage. to save VRAM.
-	CheckUsedTextures();
+	CheckUsedTextures(false);
 
 	RenderPath2D::Update(dt);
 

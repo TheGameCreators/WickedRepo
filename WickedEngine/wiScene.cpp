@@ -2998,6 +2998,13 @@ OPTICK_EVENT();
 					{
 						float fLengthOfAnimInTime = animation.end - animation.start;
 						animation.timer -= fLengthOfAnimInTime;
+						//PE: Additional check to make sure we do not go ever animation.end should still do extra step.
+						//PE: animation.end(183) - animation.start(183) = 0 failed.
+						//PE: animation.end(184) - animation.start(183) = 1 failed if timer > 184.
+						if (animation.timer > animation.end)
+						{
+							animation.timer = animation.start;
+						}
 					}
 				}
 #else
