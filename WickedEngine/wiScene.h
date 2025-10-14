@@ -692,6 +692,8 @@ namespace wiScene
 		float lodDistance = 100000.0f;
 		bool bPreventAnyKindOfCulling = false;
 		inline void SetRenderPreventAnyKindOfCulling(bool flag) { bPreventAnyKindOfCulling = flag; }
+		bool bDisableCollision = false;
+		inline void SetDisableCollision(bool flag) { bDisableCollision = flag; }
 #endif
 
 		inline bool IsOccluded() const
