@@ -4891,6 +4891,10 @@ OPTICK_EVENT();
 			{
 				continue;
 			}
+			if (object.bDisableCollision)
+			{
+				continue;
+			}
 			if (!(renderTypeMask & object.GetRenderTypes()))
 			{
 				continue;
