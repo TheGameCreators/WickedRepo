@@ -24,7 +24,8 @@ namespace wiPhysicsEngine
 	bool SIMULATION_ENABLED = true;
 	bool DEBUGDRAW_ENABLED = false;
 	int ACCURACY = 10;
-	std::mutex physicsLock;
+	//std::mutex physicsLock;
+	std::recursive_mutex physicsLock;
 
 	btVector3 gravity(0, -10, 0);
 	int softbodyIterationCount = 5;
