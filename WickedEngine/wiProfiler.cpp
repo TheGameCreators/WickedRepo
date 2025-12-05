@@ -30,7 +30,8 @@ namespace wiProfiler
 	int iPolygonsDrawnTransparent = 0, iOldPolygonsDrawnTransparent = 0;
 	int iFrustumculled = 0;
 #endif
-	std::mutex lock;
+	//std::mutex lock;
+	std::recursive_mutex lock;
 	range_id cpu_frame;
 	range_id gpu_frame;
 	GPUQueryHeap queryHeap[wiGraphics::GraphicsDevice::GetBufferCount() + 1];

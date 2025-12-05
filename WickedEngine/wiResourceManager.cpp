@@ -19,7 +19,8 @@ namespace GGTerrain
 
 namespace wiResourceManager
 {
-	std::mutex locker;
+	//std::mutex locker;
+	std::recursive_mutex locker;
 	std::unordered_map<std::string, std::weak_ptr<wiResource>> resources;
 	MODE mode = MODE_DISCARD_FILEDATA_AFTER_LOAD;
 
@@ -507,7 +508,8 @@ namespace wiResourceManager
 			temp_resources.resize(serializable_count);
 
 			wiJobSystem::context ctx;
-			std::mutex seri_locker;
+			//std::mutex seri_locker;
+			std::recursive_mutex seri_locker;
 			for (size_t i = 0; i < serializable_count; ++i)
 			{
 				auto& resource = temp_resources[i];

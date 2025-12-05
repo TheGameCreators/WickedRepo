@@ -706,7 +706,8 @@ namespace wiShaderCompiler
 		return false;
 	}
 
-	std::mutex locker;
+	//std::mutex locker;
+	std::recursive_mutex locker;
 	std::unordered_set<std::string> registered_shaders;
 	void RegisterShader(const std::string& shaderfilename)
 	{
