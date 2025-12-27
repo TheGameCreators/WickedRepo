@@ -1828,7 +1828,8 @@ bool GraphicsDevice_DX11::CreateTexture(const TextureDesc* pDesc, const Subresou
 		break;
 	}
 
-	assert(SUCCEEDED(hr));
+	//avoid a crash in debug and on some PCs that crash on such an exception!
+	//assert(SUCCEEDED(hr));
 	if (FAILED(hr))
 		return SUCCEEDED(hr);
 
