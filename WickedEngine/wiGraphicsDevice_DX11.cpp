@@ -3487,7 +3487,7 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 				// we need a good subresouvcrce UAV but it's out of bounds!
 				logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, internal_state, count, nullptr, "INVALID_SUBRESOURCE_OOB");
 				AddToSpecialGGDebugLog(logline);
-				return;
+				UAV = internal_state->uav.Get(); //return;
 			}
 			else
 			{
@@ -3495,7 +3495,6 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 				UAV = internal_state->subresources_uav[subresource].Get();
 			}
 		}
-
 		if (stage == CS)
 		{
 			deviceContexts[cmd]->CSSetUnorderedAccessViews(slot, 1, &UAV, nullptr);
@@ -3525,87 +3524,6 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 		}
 	}
 }
-/* AI generated and not perfectly identical to the functionality of the original!
-void GraphicsDevice_DX11::BindUAV(
-	SHADERSTAGE stage,
-	const GPUResource* resource,
-	uint32_t slot,
-	CommandList cmd,
-	int subresource)
-{
-	// Early log string we can populate on failures:
-	// (Only create when needed if you're sensitive to allocations.)
-	std::string logline;
-
-	// Basic checks first:
-	if (resource == nullptr)
-	{
-		logline = "[BindUAV] outcome=NULL_RESOURCE";
-		// You can append more if desired, but resource is null so limited:
-		g_SpecialGGDebugLog += logline;// send_to_log(logline);
-		return;
-	}
-
-	if (!resource->IsValid())
-	{
-		// Build a richer log:
-		logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource,
-			nullptr, 0, nullptr, "RESOURCE_INVALID");
-		g_SpecialGGDebugLog += logline;// send_to_log(logline);
-		return;
-	}
-
-	auto internal_state = to_internal(resource); // whatever your type is
-	if (internal_state == nullptr)
-	{
-		logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource,
-			nullptr, 0, nullptr, "INTERNAL_STATE_NULL");
-		g_SpecialGGDebugLog += logline;// send_to_log(logline);
-		return;
-	}
-	ID3D11UnorderedAccessView* uav = nullptr;
-	if (subresource < 0)
-	{
-		uav = internal_state->uav.Get();
-		if (uav == nullptr)
-		{
-			logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource,
-				internal_state,
-				internal_state->subresources_uav.size(),
-				nullptr,
-				"UAV_NULL_DEFAULT");
-			g_SpecialGGDebugLog += logline;// send_to_log(logline);
-			return; // or continue with a null bind depending on your policy
-		}
-	}
-	else
-	{
-		const size_t idx = static_cast<size_t>(subresource);
-		const size_t count = internal_state->subresources_uav.size();
-		if (idx >= count)
-		{
-			logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource,
-				internal_state,
-				count,
-				nullptr,
-				"INVALID_SUBRESOURCE_OOB");
-			g_SpecialGGDebugLog += logline;// send_to_log(logline);
-			return;
-		}
-		uav = internal_state->subresources_uav[idx].Get();
-		if (uav == nullptr)
-		{
-			logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource,
-				internal_state,
-				count,
-				nullptr,
-				"UAV_NULL_SUBRESOURCE");
-			g_SpecialGGDebugLog += logline;// send_to_log(logline);
-			return;
-		}
-	}
-}
-*/
 // GGREDUCED FINISH
 /* original version has no logging but it can cause crash for some users!
 void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource, uint32_t slot, CommandList cmd, int subresource)
