@@ -307,6 +307,7 @@ namespace wiGraphics
 		void GenerateMipmaps(Texture* tex, CommandList cmd) override;
 		void CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd) override;
 		char* GetGraphicsCardName(void) override;
+		void SetSpecialGGDebugLog(char*) override;
 #endif
 		void UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize = -1) override;
 		void QueryBegin(const GPUQueryHeap* heap, uint32_t index, CommandList cmd) override;

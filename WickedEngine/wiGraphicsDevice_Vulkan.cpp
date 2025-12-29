@@ -6827,6 +6827,9 @@ using namespace Vulkan_Internal;
 	{
 		return NULL;
 	}
+	void GraphicsDevice_Vulkan::GetSpecialGGDebugLog(char* pString)
+	{
+	}
 #endif
 	void GraphicsDevice_Vulkan::UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize)
 	{

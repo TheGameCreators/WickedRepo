@@ -6328,6 +6328,9 @@ using namespace DX12_Internal;
 	{
 		return NULL;
 	}
+	void GraphicsDevice_DX12::GetSpecialGGDebugLog(char* pString)
+	{
+	}
 #endif
 	void GraphicsDevice_DX12::UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize)
 	{
