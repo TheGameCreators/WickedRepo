@@ -3487,7 +3487,19 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 				// we need a good subresouvcrce UAV but it's out of bounds!
 				logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, internal_state, count, nullptr, "INVALID_SUBRESOURCE_OOB");
 				AddToSpecialGGDebugLog(logline);
-				UAV = internal_state->uav.Get(); //return;
+
+				// UAV = internal_state->uav.Get(); //return; yep, this can still cause a crash!!
+				// safest: stop doing anything else with this bind call
+				if (stage == CS)
+				{
+					ID3D11UnorderedAccessView* nullUAV = nullptr;
+					deviceContexts[cmd]->CSSetUnorderedAccessViews(slot, 1, &nullUAV, nullptr);
+				}
+				else
+				{
+					raster_uavs[cmd][slot] = nullptr;
+				}
+				return;
 			}
 			else
 			{
