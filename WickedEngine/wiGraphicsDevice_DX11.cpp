@@ -3262,14 +3262,18 @@ void GraphicsDevice_DX11::BindViewports(uint32_t NumViewports, const Viewport* p
 
 void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* resource, uint32_t slot, CommandList cmd, int subresource)
 {
+	#ifdef GGREDUCED
+	static uint32_t maxerrors = 5;
+	void timestampactivity(int i, char* desc_s);
+	#endif
+
 	if (resource != nullptr && resource->IsValid())
 	{
 		auto internal_state = to_internal(resource);
 		ID3D11ShaderResourceView* SRV;
-
 		if (subresource < 0)
 		{
-#ifdef GGREDUCED
+			#ifdef GGREDUCED
 			if (internal_state->srv == NULL)
 			{
 				static uint32_t maxerrors = 5;
@@ -3281,16 +3285,13 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 					sprintf(debug, "DEBUG: internal_state->srv == NULL");
 					timestampactivity(0, debug);
 				}
-				//__debugbreak();
 				return;
 			}
-#endif
+			#endif
 			SRV = internal_state->srv.Get();
-#ifdef GGREDUCED
+			#ifdef GGREDUCED
 			if (SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1)
 			{
-				static uint32_t maxerrors = 5;
-				void timestampactivity(int i, char* desc_s);
 				if (maxerrors > 0)
 				{
 					maxerrors--;
@@ -3298,20 +3299,49 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 					sprintf(debug, "DEBUG: SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1");
 					timestampactivity(0, debug);
 				}
-				//__debugbreak();
 				return;
 			}
-#endif
-
+			#endif
 		}
 		else
 		{
+			#ifdef GGREDUCED
+			//seems ASSERT CAN INTERFRE with some PCs even in Release Build!?
+			//assert(internal_state->subresources_srv.size() > static_cast<size_t>(subresource) && "Invalid subresource!");
+			// Release-safe guard:
+			const size_t idx = static_cast<size_t>(subresource);
+			const size_t count = internal_state->subresources_srv.size();
+			if (idx >= count)
+			{
+				if (maxerrors > 0)
+				{
+					maxerrors--;
+					char debug[MAX_PATH];
+					sprintf(debug, "DEBUG BindResource Before: SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1");
+					timestampactivity(0, debug);
+				}
+				return;
+			}
+			SRV = internal_state->subresources_srv[idx].Get();
+			if (SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1)
+			{
+				if (maxerrors > 0)
+				{
+					maxerrors--;
+					char debug[MAX_PATH];
+					sprintf(debug, "DEBUG BindResource After: SRV == NULL || SRV == (ID3D11ShaderResourceView*)0xdddddddddddddddd || SRV == (ID3D11ShaderResourceView*)1");
+					timestampactivity(0, debug);
+				}
+				return;
+			}
+			SRV = internal_state->subresources_srv[subresource].Get();
+			#else
 			assert(internal_state->subresources_srv.size() > static_cast<size_t>(subresource) && "Invalid subresource!");
 			SRV = internal_state->subresources_srv[subresource].Get();
+			#endif
 		}
 		try
 		{
-
 			switch (stage)
 			{
 			case wiGraphics::VS:
@@ -3336,7 +3366,6 @@ void GraphicsDevice_DX11::BindResource(SHADERSTAGE stage, const GPUResource* res
 			default:
 				break;
 			}
-
 		}
 		catch (...)
 		{
