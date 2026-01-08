@@ -3497,8 +3497,11 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 		if (internal_state == nullptr)
 		{
 			// there is no internal_state!
-			logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, nullptr, 0, nullptr, "INTERNAL_STATE_NULL");
-			AddToSpecialGGDebugLog(logline);
+			if (g_SpecialGGDebugLog)
+			{
+				logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, nullptr, 0, nullptr, "INTERNAL_STATE_NULL");
+				AddToSpecialGGDebugLog(logline);
+			}
 			return;
 		}
 
@@ -3514,8 +3517,11 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 			if (idx >= count)
 			{
 				// we need a good subresouvcrce UAV but it's out of bounds!
-				logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, internal_state, count, nullptr, "INVALID_SUBRESOURCE_OOB");
-				AddToSpecialGGDebugLog(logline);
+				if (g_SpecialGGDebugLog)
+				{
+					logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, internal_state, count, nullptr, "INVALID_SUBRESOURCE_OOB");
+					AddToSpecialGGDebugLog(logline);
+				}
 
 				// UAV = internal_state->uav.Get(); //return; yep, this can still cause a crash!!
 				// safest: stop doing anything else with this bind call
@@ -3552,15 +3558,21 @@ void GraphicsDevice_DX11::BindUAV(SHADERSTAGE stage, const GPUResource* resource
 		// log resource issues
 		if (resource == nullptr)
 		{
-			logline = "[BindUAV] outcome=NULL_RESOURCE";
-			AddToSpecialGGDebugLog(logline);
+			if (g_SpecialGGDebugLog)
+			{
+				logline = "[BindUAV] outcome=NULL_RESOURCE";
+				AddToSpecialGGDebugLog(logline);
+			}
 		}
 		else
 		{
 			if (!resource->IsValid())
 			{
-				logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, nullptr, 0, nullptr, "RESOURCE_INVALID");
-				AddToSpecialGGDebugLog(logline);
+				if (g_SpecialGGDebugLog)
+				{
+					logline = BuildBindUAVLog(stage, resource, slot, cmd, subresource, nullptr, 0, nullptr, "RESOURCE_INVALID");
+					AddToSpecialGGDebugLog(logline);
+				}
 			}
 		}
 	}
