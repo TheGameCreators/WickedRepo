@@ -157,7 +157,7 @@ namespace wiGraphics
 		virtual void GenerateMipmaps(Texture* tex, CommandList cmd) = 0;
 		virtual void CopyBufferRegion(const GPUBuffer* pDst, uint32_t dstOffset, const GPUBuffer* pSrc, uint32_t srcOffset, uint32_t srcLength, CommandList cmd) = 0;
 		virtual char* GetGraphicsCardName(void) = 0;
-		virtual void SetSpecialGGDebugLog(char*) = 0;
+		virtual void SetSpecialGGDebugLog(char*, bool) = 0;
 #endif
 		virtual void UpdateBuffer(const GPUBuffer* buffer, const void* data, CommandList cmd, int dataSize = -1) = 0;
 		virtual void QueryBegin(const GPUQueryHeap *heap, uint32_t index, CommandList cmd) = 0;

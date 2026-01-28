@@ -1433,17 +1433,9 @@ GraphicsDevice_DX11::GraphicsDevice_DX11(bool debuglayer)
 					strcpy(g_pGraphicsCardName, cDeviceName);
 					g_iActiveAdapterNumber = index;
 
-					//we can view this in DebugView :)
-					g_enablePixMarkers = false;
-					if (GetModuleHandleA("WinPixEventRuntime.dll"))
-					{
-						OutputDebugStringA("WinPixEventRuntime.dll LOADED\n");
-						g_enablePixMarkers = true;
-					}
-					else
-					{
-						OutputDebugStringA("WinPixEventRuntime.dll NOT loaded\n");
-					}
+					//we can view this in Windows DebugView :)
+					OutputDebugStringA(g_pGraphicsCardName);
+
 					break;
 				}
 			}
@@ -3924,10 +3916,11 @@ char* GraphicsDevice_DX11::GetGraphicsCardName(void)
 	return g_pGraphicsCardName;
 }
 
-void GraphicsDevice_DX11::SetSpecialGGDebugLog(char* pString)
+void GraphicsDevice_DX11::SetSpecialGGDebugLog(char* pString, bool enablePixMarkers)
 {
 	// Get the collected string containing any GG debug log messages.
 	g_SpecialGGDebugLog = pString;
+	g_enablePixMarkers = enablePixMarkers;
 }
 #endif
 
