@@ -5936,8 +5936,7 @@ using namespace Vulkan_Internal;
 			assert(res == VK_SUCCESS);
 		}
 	}
-
-	CommandList GraphicsDevice_Vulkan::BeginCommandList(QUEUE_TYPE queue)
+	CommandList GraphicsDevice_Vulkan::BeginCommandList(QUEUE_TYPE queue, const char* tag)
 	{
 		VkResult res;
 

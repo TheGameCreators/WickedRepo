@@ -116,7 +116,8 @@ namespace wiGraphics
 
 		void WaitForGPU() const override;
 
-		CommandList BeginCommandList(QUEUE_TYPE queue = QUEUE_GRAPHICS) override;
+		CommandList BeginCommandList(QUEUE_TYPE queue = QUEUE_GRAPHICS, const char* tag = "") override;
+
 		void SubmitCommandLists() override;
 
 		SHADERFORMAT GetShaderFormat() const override { return SHADERFORMAT_HLSL5; }

@@ -17,6 +17,9 @@
 char g_pGraphicsCardName[256];
 uint32_t g_iActiveAdapterNumber = 0;
 char* g_SpecialGGDebugLog = NULL;
+std::string cmd_labels[32];// COMMANDLIST_COUNT];
+#include <pix3.h>
+bool g_enablePixMarkers = false;
 #endif
 
 // These will let the driver select the dedicated GPU in favour of the integrated one:
@@ -1429,6 +1432,18 @@ GraphicsDevice_DX11::GraphicsDevice_DX11(bool debuglayer)
 					bSuccessFindingAdapter = true;
 					strcpy(g_pGraphicsCardName, cDeviceName);
 					g_iActiveAdapterNumber = index;
+
+					//we can view this in DebugView :)
+					g_enablePixMarkers = false;
+					if (GetModuleHandleA("WinPixEventRuntime.dll"))
+					{
+						OutputDebugStringA("WinPixEventRuntime.dll LOADED\n");
+						g_enablePixMarkers = true;
+					}
+					else
+					{
+						OutputDebugStringA("WinPixEventRuntime.dll NOT loaded\n");
+					}
 					break;
 				}
 			}
@@ -2851,7 +2866,7 @@ void GraphicsDevice_DX11::SetName(GPUResource* pResource, const char* name)
 #pragma optimize("", on)
 #endif
 
-CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
+CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue, const char* tag)
 {
 	CommandList cmd = cmd_count.fetch_add(1);
 	assert(cmd < COMMANDLIST_COUNT);
@@ -2869,6 +2884,9 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 		}
 		//__debugbreak();
 	}
+
+	cmd_labels[cmd] = tag;
+
 	if (deviceContexts[cmd] == nullptr)
 	{
 		// need to create one more command list:
@@ -2957,6 +2975,8 @@ CommandList GraphicsDevice_DX11::BeginCommandList(QUEUE_TYPE queue)
 }
 void GraphicsDevice_DX11::SubmitCommandLists()
 {
+	if(g_enablePixMarkers) PIXBeginEvent(PIX_COLOR_DEFAULT, "FRAME %u", (unsigned)FRAMECOUNT);
+
 	const int disjoint_write = FRAMECOUNT % arraysize(disjointQueries);
 	const int disjoint_read = (FRAMECOUNT + 1) % arraysize(disjointQueries);
 	immediateContext->Begin(disjointQueries[disjoint_write].Get());
@@ -2973,7 +2993,20 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 		OPTICK_EVENT("ExecuteCommandList");
 #endif
 #endif
-		immediateContext->ExecuteCommandList(commandLists[cmd].Get(), false);
+
+		// needed to pinpoint a device lost issue!
+		if (g_enablePixMarkers)
+		{
+			const char* tag = cmd_labels[cmd].empty() ? "UNLABELED" : cmd_labels[cmd].c_str();
+			PIXScopedEvent(PIX_COLOR_DEFAULT,
+				"ExecuteCommandList %s (cmd=%u frame=%u)",
+				tag, (unsigned)cmd, (unsigned)FRAMECOUNT);
+			immediateContext->ExecuteCommandList(commandLists[cmd].Get(), FALSE);
+		}
+		else
+		{
+			immediateContext->ExecuteCommandList(commandLists[cmd].Get(), FALSE);
+		}
 		commandLists[cmd].Reset();
 
 		for (auto& swapchain : swapchains[cmd])
@@ -3000,7 +3033,6 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 
 				if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 				{
-//#ifdef _DEBUG
 					//PE: For now lets get some info, should be in _DEBUG but.
 					char buff[1024] = {};
 					sprintf_s(buff, "DEBUG: Device Lost: Reason code 0x%08X\n",
@@ -3014,9 +3046,6 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 						timestampactivity(0, buff);
 					}
 					MessageBoxA(NULL, buff, "WickedError:", MB_OK);
-
-//#endif
-					//__debugbreak();
 				}
 		}
 	}
@@ -3035,6 +3064,7 @@ void GraphicsDevice_DX11::SubmitCommandLists()
 		TIMESTAMP_FREQUENCY = disjoint.Frequency;
 	}
 
+	if (g_enablePixMarkers) PIXEndEvent();
 	FRAMECOUNT++;
 }
 

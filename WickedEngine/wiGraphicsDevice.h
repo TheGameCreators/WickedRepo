@@ -86,7 +86,7 @@ namespace wiGraphics
 
 		// Begin a new command list for GPU command recording.
 		//	This will be valid until SubmitCommandLists() is called.
-		virtual CommandList BeginCommandList(QUEUE_TYPE queue = QUEUE_GRAPHICS) = 0;
+		virtual CommandList BeginCommandList(QUEUE_TYPE queue = QUEUE_GRAPHICS, const char* tag = "") = 0;
 		// Submit all command list that were used with BeginCommandList before this call.
 		//	This will make every command list to be in "available" state and restarts them
 		virtual void SubmitCommandLists() = 0;

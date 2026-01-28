@@ -988,7 +988,7 @@ void RenderPath3D::Render(int mode) const
 	}
 
 	// Preparing the frame:
-	cmd = device->BeginCommandList();
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "RenderFrameSetUp");
 	CommandList cmd_prepareframe = cmd;
 
 #ifdef DELAYEDSHADOWS
@@ -1007,7 +1007,7 @@ void RenderPath3D::Render(int mode) const
 	{
 		// Acceleration structures:
 		//	async compute parallel with depth prepass
-		cmd = device->BeginCommandList(QUEUE_COMPUTE);
+		cmd = device->BeginCommandList(QUEUE_GRAPHICS, "UpdateRaytracingAccelerationStructures");
 		device->WaitCommandList(cmd, cmd_prepareframe);
 		wiJobSystem::Execute(ctx, [this, cmd](wiJobArgs args) {
 
@@ -1028,7 +1028,7 @@ void RenderPath3D::Render(int mode) const
 		;
 
 	// Main camera depth prepass + occlusion culling:
-	cmd = device->BeginCommandList();
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "OpaqueZPrepass");
 	CommandList cmd_maincamera_prepass = cmd;
 	wiJobSystem::Execute(ctx, [this, cmd, previousCamera, mode](wiJobArgs args) {
 
@@ -1095,7 +1095,7 @@ void RenderPath3D::Render(int mode) const
 	// Main camera compute effects:
 	//	(async compute, parallel to "shadow maps" and "update textures",
 	//	must finish before "main scene opaque color pass")
-	cmd = device->BeginCommandList(QUEUE_COMPUTE);
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "PostprocessDepthPyramid");
 	device->WaitCommandList(cmd, cmd_maincamera_prepass);
 	CommandList cmd_maincamera_compute_effects = cmd;
 	wiJobSystem::Execute(ctx, [this, cmd, previousCamera, cloudIndex](wiJobArgs args) {
@@ -1232,14 +1232,14 @@ void RenderPath3D::Render(int mode) const
 		wiJobSystem::Wait(ctx);
 	if (getShadowsEnabled())
 	{
-		cmd = device->BeginCommandList();
+		cmd = device->BeginCommandList(QUEUE_GRAPHICS, "DrawShadowmaps");
 		wiJobSystem::Execute(ctx, [this, cmd](wiJobArgs args) {
 			wiRenderer::DrawShadowmaps(visibility_main, cmd);
 			});
 	}
 
 	// Updating textures:
-	cmd = device->BeginCommandList();
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "RefreshDecalAtlas");
 	wiJobSystem::Execute(ctx, [cmd, this](wiJobArgs args) {
 		wiRenderer::BindCommonResources(cmd);
 		wiRenderer::RefreshDecalAtlas(*scene, cmd);
@@ -1253,7 +1253,7 @@ void RenderPath3D::Render(int mode) const
 	// Voxel GI:
 	if (wiRenderer::GetVoxelRadianceEnabled())
 	{
-		cmd = device->BeginCommandList();
+		cmd = device->BeginCommandList(QUEUE_GRAPHICS, "VoxelRadiance");
 		wiJobSystem::Execute(ctx, [cmd, this](wiJobArgs args) {
 			wiRenderer::VoxelRadiance(visibility_main, cmd);
 			});
@@ -1262,7 +1262,7 @@ void RenderPath3D::Render(int mode) const
 	if (visibility_main.IsRequestedPlanarReflections() && getReflectionsEnabled())
 	{
 		// Planar reflections depth prepass:
-		cmd = device->BeginCommandList();
+		cmd = device->BeginCommandList(QUEUE_GRAPHICS, "PlanarReflectionsZPrepass");
 		wiJobSystem::Execute(ctx, [cmd, this, previousCameraReflection, cloudIndex](wiJobArgs args) {
 
 			GraphicsDevice* device = wiRenderer::GetDevice();
@@ -1349,7 +1349,7 @@ void RenderPath3D::Render(int mode) const
 
 		//PE: This crash a lot try to make the mainthread run it. (Looks ok).
 		// Planar reflections opaque color pass:
-		cmd = device->BeginCommandList();
+		cmd = device->BeginCommandList(QUEUE_GRAPHICS, "ComputeTiledLightCulling");
 		//wiJobSystem::Execute(ctx, [cmd, this, previousCameraReflection, cloudIndex](wiJobArgs args) {
 
 			GraphicsDevice* device = wiRenderer::GetDevice();
@@ -1437,7 +1437,7 @@ void RenderPath3D::Render(int mode) const
 	}
 
 	// Main camera opaque color pass:
-	cmd = device->BeginCommandList();
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "PostprocessRTReflection");
 	device->WaitCommandList(cmd, cmd_maincamera_compute_effects);
 	wiJobSystem::Execute(ctx, [this, cmd, previousCamera, cloudIndex](wiJobArgs args) {
 
@@ -1596,7 +1596,7 @@ void RenderPath3D::Render(int mode) const
 		});
 
 	// Transparents, post processes, etc:
-	cmd = device->BeginCommandList();
+	cmd = device->BeginCommandList(QUEUE_GRAPHICS, "RenderLightShafts");
 	wiJobSystem::Execute(ctx, [this, cmd, previousCamera, mode](wiJobArgs args) {
 
 		GraphicsDevice* device = wiRenderer::GetDevice();

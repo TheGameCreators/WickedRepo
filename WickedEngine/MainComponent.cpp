@@ -84,7 +84,7 @@ void MainComponent::Run()
 		// we do this elsewhere now
 		#else
 		// Until engine is not loaded, present initialization screen...
-		CommandList cmd = wiRenderer::GetDevice()->BeginCommandList();
+		CommandList cmd = wiRenderer::GetDevice()->BeginCommandList(QUEUE_GRAPHICS, "Initialization");
 		wiRenderer::GetDevice()->RenderPassBegin(&swapChain, cmd);
 		wiImage::SetCanvas(canvas, cmd);
 		wiFont::SetCanvas(canvas, cmd);
@@ -208,7 +208,7 @@ void MainComponent::Run()
 	else
 	{
 	#endif
-	CommandList cmd = wiRenderer::GetDevice()->BeginCommandList();
+	CommandList cmd = wiRenderer::GetDevice()->BeginCommandList(QUEUE_GRAPHICS, "Swapchain");
 	wiRenderer::GetDevice()->RenderPassBegin(&swapChain, cmd);
 	{
 		wiImage::SetCanvas(canvas, cmd);

@@ -5592,8 +5592,7 @@ using namespace DX12_Internal;
 			}
 		}
 	}
-
-	CommandList GraphicsDevice_DX12::BeginCommandList(QUEUE_TYPE queue)
+	CommandList GraphicsDevice_DX12::BeginCommandList(QUEUE_TYPE queue, const char* tag)
 	{
 		HRESULT hr;
 
