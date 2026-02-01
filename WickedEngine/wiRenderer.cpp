@@ -3466,7 +3466,7 @@ void RenderMeshes(
 			{
 				current_batch.aabb = AABB::Merge(current_batch.aabb, instanceAABB);
 			}
-
+			
 			const XMFLOAT4X4& worldMatrix = instance.transform_index >= 0 ? vis.scene->transforms[instance.transform_index].world : IDENTITYMATRIX;
 
 			for (uint32_t frustum_index = 0; frustum_index < frustum_count; ++frustum_index)
@@ -4454,12 +4454,14 @@ void UpdatePerFrameData(
 					continue;
 				}
 				//PE: NEWTEST transparent object can have problems disable for now.
-				if (object.GetRenderTypes() & RENDERTYPE_TRANSPARENT)
-				{
-					object.occlusionHistory |= 1;
-					object.occlusionQueries[scene.queryheap_idx] = -1;
-					continue;
-				}
+				//PE: Works now so enable again for now, another change must have fixed it.
+//				if (object.GetRenderTypes() & RENDERTYPE_TRANSPARENT)
+//				{
+//					object.occlusionHistory |= 1;
+//					object.occlusionQueries[scene.queryheap_idx] = -1;
+//					continue;
+//				}
+
 				//PE: Dont occlude nearby object.
 				if (object.GetCameraDistance() < 1500) // bTmpTesting newtest
 				{
