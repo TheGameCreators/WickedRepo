@@ -603,12 +603,14 @@ inline void PointLight(in ShaderEntity light, in Surface surface, inout Lighting
 				if ((g_xFrame_Options & OPTION_BIT_RAYTRACED_SHADOWS) == 0)
 #endif // RTAPI
 				{
+
 #ifdef DISTANCE_BASED_SHADOWS
 					float dist = length(g_xCamera_CamPos - surface.P);
 					shadow *= shadowCube(light, L, Lunnormalized, dist);
 #else
 					shadow *= shadowCube(light, L, Lunnormalized);
 #endif
+
 				}
 			}
 
