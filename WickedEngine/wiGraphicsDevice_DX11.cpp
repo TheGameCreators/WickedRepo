@@ -9,6 +9,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <mutex>
 
 #ifdef GGREDUCED
 #ifdef OPTICK_ENABLE
@@ -1127,6 +1128,7 @@ namespace DX11_Internal
 		std::vector<ComPtr<ID3D11RenderTargetView>> subresources_rtv;
 		std::vector<ComPtr<ID3D11DepthStencilView>> subresources_dsv;
 		std::vector<DSVSliceClearCache> dsv_slice_clear_cache;
+		std::mutex dsv_slice_clear_cache_mutex;
 	};
 	struct VertexShader_DX11
 	{
@@ -2618,34 +2620,6 @@ int GraphicsDevice_DX11::CreateSubresource(Texture* texture, SUBRESOURCE_TYPE ty
 		HRESULT hr = device->CreateDepthStencilView(internal_state->resource.Get(), &dsv_desc, &dsv);
 		if (SUCCEEDED(hr))
 		{
-			// NVIDIA DX11 workaround: cache one-slice DSVs for array views so they can be
-			// cleared individually without creating views in the render loop.
-			if (dsv_desc.ViewDimension == D3D11_DSV_DIMENSION_TEXTURE2DARRAY && dsv_desc.Texture2DArray.ArraySize > 1)
-			{
-				Texture_DX11::DSVSliceClearCache cache;
-				cache.source = dsv.Get();
-				cache.slices.reserve(dsv_desc.Texture2DArray.ArraySize);
-
-				for (UINT slice = 0; slice < dsv_desc.Texture2DArray.ArraySize; ++slice)
-				{
-					D3D11_DEPTH_STENCIL_VIEW_DESC slice_desc = dsv_desc;
-					slice_desc.Texture2DArray.FirstArraySlice = dsv_desc.Texture2DArray.FirstArraySlice + slice;
-					slice_desc.Texture2DArray.ArraySize = 1;
-
-					ComPtr<ID3D11DepthStencilView> slice_dsv;
-					HRESULT slice_hr = device->CreateDepthStencilView(internal_state->resource.Get(), &slice_desc, &slice_dsv);
-					if (SUCCEEDED(slice_hr))
-					{
-						cache.slices.push_back(slice_dsv);
-					}
-				}
-
-				if (cache.slices.size() == dsv_desc.Texture2DArray.ArraySize)
-				{
-					internal_state->dsv_slice_clear_cache.push_back(std::move(cache));
-				}
-			}
-
 			if (!internal_state->dsv)
 			{
 				internal_state->dsv = dsv;
@@ -3206,21 +3180,67 @@ void GraphicsDevice_DX11::RenderPassBegin(const RenderPass* renderpass, CommandL
 				if (IsFormatStencilSupport(texture->desc.Format))
 					_flags |= D3D11_CLEAR_STENCIL;
 
-				bool cleared_slices = false;
-				for (const auto& cache : internal_state->dsv_slice_clear_cache)
+				D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+				DSV->GetDesc(&dsvDesc);
+				if (
+					dsvDesc.ViewDimension == D3D11_DSV_DIMENSION_TEXTURE2DARRAY &&
+					dsvDesc.Texture2DArray.ArraySize > 1
+					)
 				{
-					if (cache.source == DSV)
+					// NVIDIA DX11 workaround: a multi-slice ClearDepthStencilView can leave stale
+					// depth behind. Lazily create one-slice DSVs once, then reuse them on later clears.
+					std::lock_guard<std::mutex> lock(internal_state->dsv_slice_clear_cache_mutex);
+					Texture_DX11::DSVSliceClearCache* cache = nullptr;
+
+					for (auto& cached : internal_state->dsv_slice_clear_cache)
 					{
-						for (const auto& slice_dsv : cache.slices)
+						if (cached.source == DSV)
 						{
-							deviceContexts[cmd]->ClearDepthStencilView(slice_dsv.Get(), _flags, texture->desc.clear.depthstencil.depth, texture->desc.clear.depthstencil.stencil);
+							cache = &cached;
+							break;
 						}
-						cleared_slices = true;
-						break;
+					}
+
+					if (cache == nullptr)
+					{
+						Texture_DX11::DSVSliceClearCache new_cache;
+						new_cache.source = DSV;
+						new_cache.slices.reserve(dsvDesc.Texture2DArray.ArraySize);
+
+						for (UINT slice = 0; slice < dsvDesc.Texture2DArray.ArraySize; ++slice)
+						{
+							D3D11_DEPTH_STENCIL_VIEW_DESC sliceDesc = dsvDesc;
+							sliceDesc.Texture2DArray.FirstArraySlice = dsvDesc.Texture2DArray.FirstArraySlice + slice;
+							sliceDesc.Texture2DArray.ArraySize = 1;
+
+							ComPtr<ID3D11DepthStencilView> sliceDSV;
+							HRESULT hr = device->CreateDepthStencilView(internal_state->resource.Get(), &sliceDesc, &sliceDSV);
+							if (FAILED(hr))
+							{
+								new_cache.slices.clear();
+								break;
+							}
+							new_cache.slices.push_back(sliceDSV);
+						}
+
+						internal_state->dsv_slice_clear_cache.push_back(std::move(new_cache));
+						cache = &internal_state->dsv_slice_clear_cache.back();
+					}
+
+					if (cache->slices.size() == dsvDesc.Texture2DArray.ArraySize)
+					{
+						for (const auto& sliceDSV : cache->slices)
+						{
+							deviceContexts[cmd]->ClearDepthStencilView(sliceDSV.Get(), _flags, texture->desc.clear.depthstencil.depth, texture->desc.clear.depthstencil.stencil);
+						}
+					}
+					else
+					{
+						// Fall back to the original clear if one-slice DSV creation failed.
+						deviceContexts[cmd]->ClearDepthStencilView(DSV, _flags, texture->desc.clear.depthstencil.depth, texture->desc.clear.depthstencil.stencil);
 					}
 				}
-
-				if (!cleared_slices)
+				else
 				{
 					deviceContexts[cmd]->ClearDepthStencilView(DSV, _flags, texture->desc.clear.depthstencil.depth, texture->desc.clear.depthstencil.stencil);
 				}
